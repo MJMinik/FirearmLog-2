@@ -7,12 +7,12 @@ import {
   parseOldFile, importPistolTracker, guessCategory
 } from '../lib/import/pistolTracker.ts';
 import type { VerificationReport } from '../lib/import/pistolTracker.ts';
-import { commitDataSet } from '../lib/db.ts';
+import { commitDataSet, countAll } from '../lib/db.ts';
 
 type Step =
   | { name: 'pick' }
   | { name: 'confirm'; old: ReturnType<typeof parseOldFile>; guns: { id: string; label: string; category: GunCategory }[] }
-  | { name: 'working' }
+  | { name: 'working'; message: string }
   | { name: 'done'; report: VerificationReport }
   | { name: 'error'; message: string };
 
@@ -35,12 +35,21 @@ export function ImportFlow({ onImported }: { onImported: () => void }) {
   }
 
   async function confirmAndImport(old: ReturnType<typeof parseOldFile>, guns: { id: string; category: GunCategory }[]) {
-    setStep({ name: 'working' });
+    setStep({ name: 'working', message: 'Reading your records…' });
     try {
       const categories: Record<string, GunCategory> = {};
       for (const g of guns) categories[g.id] = g.category;
       const { data, settings, report } = importPistolTracker(old, categories, Date.now());
-      await commitDataSet(data, settings);
+      await commitDataSet(data, settings, (done, total) => {
+        setStep({
+          name: 'working',
+          message: total > 0 ? `Saving photos: ${done} of ${total}…` : 'Saving your records…'
+        });
+      });
+      const savedPhotos = await countAll('media');
+      if (savedPhotos < data.media.length) {
+        throw new Error(`Only ${savedPhotos} of ${data.media.length} photos saved. Nothing was lost from your old file — just try the import again.`);
+      }
       setStep({ name: 'done', report });
       onImported();
     } catch (e) {
@@ -116,7 +125,7 @@ export function ImportFlow({ onImported }: { onImported: () => void }) {
     return (
       <div className="card">
         <h2>Importing</h2>
-        <p className="report-note">Bringing your records over… photos take a few seconds.</p>
+        <p className="report-note">{step.message}</p>
       </div>
     );
   }

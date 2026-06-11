@@ -78,7 +78,7 @@ test('images become named media records, counts verified', () => {
   assert.equal(gunPhoto.ownerId, 'fa-1');
   assert.match(gunPhoto.name, /Test Erebus/);
   assert.equal(gunPhoto.mime, 'image/png');
-  assert.ok(gunPhoto.data.size > 0);
+  assert.ok(gunPhoto.data.byteLength > 0);
   const linkedGun = data.firearms.find(f => f.id === 'fa-1')!;
   assert.deepEqual(linkedGun.photoIds, [gunPhoto.id]);
 });

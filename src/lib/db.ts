@@ -81,13 +81,21 @@ export async function countAll(store: StoreName): Promise<number> {
   return req.result;
 }
 
-/** Write a whole imported data set in one transaction — all or nothing. */
-export async function commitDataSet(data: DataSet, settings: unknown): Promise<void> {
+/**
+ * Write a whole imported data set. Small records go in one transaction;
+ * photos/videos are saved ONE PER TRANSACTION because iPhone Safari chokes
+ * on many megabytes in a single write. onProgress reports photo progress.
+ */
+export async function commitDataSet(
+  data: DataSet,
+  settings: unknown,
+  onProgress?: (done: number, total: number) => void
+): Promise<void> {
   const db = await openDb();
   const stores: StoreName[] = [
     'firearms', 'sessions', 'drills', 'ammunition', 'purchases',
     'maintenance', 'malfunctions', 'magazines', 'optics', 'parts',
-    'goals', 'skills', 'matches', 'classifiers', 'media', 'trash', 'meta'
+    'goals', 'skills', 'matches', 'classifiers', 'trash', 'meta'
   ];
   const tx = db.transaction(stores, 'readwrite');
   const putAll = (store: StoreName, records: object[]) => {
@@ -108,12 +116,24 @@ export async function commitDataSet(data: DataSet, settings: unknown): Promise<v
   putAll('skills', data.skills);
   putAll('matches', data.matches);
   putAll('classifiers', data.classifiers);
-  putAll('media', data.media);
   putAll('trash', data.trash);
   if (settings !== undefined) {
     tx.objectStore('meta').put({ key: 'settings', value: settings });
   }
   await txDone(tx);
+
+  // Photos one at a time, with progress and breathing room for the browser.
+  const total = data.media.length;
+  let done = 0;
+  onProgress?.(done, total);
+  for (const m of data.media) {
+    const mtx = db.transaction('media', 'readwrite');
+    mtx.objectStore('media').put(m);
+    await txDone(mtx);
+    done += 1;
+    onProgress?.(done, total);
+    await new Promise((r) => setTimeout(r, 0));
+  }
 }
 
 export async function getSettings<T>(): Promise<T | undefined> {

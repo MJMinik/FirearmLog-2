@@ -61,14 +61,14 @@ export function guessCategory(fa: OldRecord): GunCategory {
 
 // ---------- Media ----------
 
-function dataUrlToBlob(dataUrl: string): { blob: Blob; mime: string } | null {
+function dataUrlToBytes(dataUrl: string): { buffer: ArrayBuffer; mime: string } | null {
   const m = /^data:([^;,]+);base64,(.*)$/s.exec(dataUrl);
   if (!m) return null;
   const mime = m[1];
   const binary = atob(m[2]);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return { blob: new Blob([bytes], { type: mime }), mime };
+  return { buffer: bytes.buffer, mime };
 }
 
 // ---------- Small helpers ----------
@@ -174,7 +174,7 @@ export function importPistolTracker(
     ownerType: Media['ownerType'], ownerId: string, dataUrl: unknown, name: string
   ): string | null => {
     if (typeof dataUrl !== 'string') return null;
-    const converted = dataUrlToBlob(dataUrl);
+    const converted = dataUrlToBytes(dataUrl);
     if (!converted) return null;
     const rec: Media = stamp({
       ownerType, ownerId,
@@ -182,7 +182,7 @@ export function importPistolTracker(
       name,
       annotations: [],
       mime: converted.mime,
-      data: converted.blob
+      data: converted.buffer
     }, newId('md'), now);
     media.push(rec);
     return rec.id;

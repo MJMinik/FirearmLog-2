@@ -172,7 +172,8 @@ export interface Media extends BaseRecord {
   name: string;
   annotations: string[];
   mime: string;
-  data: Blob;
+  /** Raw image/video bytes. ArrayBuffer (not Blob) — iPhone Safari saves these reliably. */
+  data: ArrayBuffer;
 }
 
 /** Old-app trash items, carried over so nothing is lost (Q7). */
