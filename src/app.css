@@ -1,0 +1,170 @@
+/* FirearmLog design tokens — ALL colors live here as variables (rule V1/V2). */
+:root {
+  --bg: #f2f2f7;
+  --bg-card: #ffffff;
+  --bg-grouped-header: transparent;
+  --text: #000000;
+  --text-dim: #8e8e93;
+  --accent: #007aff;
+  --separator: rgba(60, 60, 67, 0.18);
+  --danger: #ff3b30;
+  --success: #34c759;
+  --warn: #ff9500;
+  --tabbar-bg: rgba(249, 249, 249, 0.85);
+  --touch-min: 44px; /* HIG minimum tap target (rules T1–T8) */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --bg-card: #1c1c1e;
+    --text: #ffffff;
+    --text-dim: #98989e;
+    --accent: #0a84ff;
+    --separator: rgba(84, 84, 88, 0.6);
+    --danger: #ff453a;
+    --success: #30d158;
+    --warn: #ff9f0a;
+    --tabbar-bg: rgba(22, 22, 24, 0.85);
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Inputs never render below 16px on iOS — kills auto-zoom (rule R2). */
+input, select, textarea, button { font-size: 16px; font-family: inherit; }
+
+#root { min-height: 100dvh; }
+
+.screen {
+  padding: 12px 16px calc(72px + env(safe-area-inset-bottom)) 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.large-title {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.37px;
+  margin: 8px 0 16px;
+}
+
+.card {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.card h2 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--touch-min);
+  padding: 6px 0;
+  border-bottom: 0.5px solid var(--separator);
+}
+.row:last-child { border-bottom: none; }
+.row .label { flex: 1; }
+.row .value { color: var(--text-dim); text-align: right; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.stat { background: var(--bg-card); border-radius: 12px; padding: 14px 16px; }
+.stat .num { font-size: 28px; font-weight: 700; }
+.stat .cap { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  padding: 12px 18px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+.button.secondary { background: var(--bg-card); color: var(--accent); }
+.button:disabled { opacity: 0.5; }
+
+.empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 48px 24px;
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.badge { font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 8px; }
+.badge.ok { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+.badge.bad { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+
+select.category-pick {
+  min-height: var(--touch-min);
+  border-radius: 10px;
+  border: 0.5px solid var(--separator);
+  background: var(--bg);
+  color: var(--text);
+  padding: 8px 12px;
+}
+
+/* Bottom tab bar — HIG standard, safe-area aware. */
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: var(--tabbar-bg);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border-top: 0.5px solid var(--separator);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 10;
+}
+.tabbar button {
+  flex: 1;
+  min-height: 50px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+}
+.tabbar button.active { color: var(--accent); }
+.tabbar .glyph { font-size: 22px; line-height: 1; }
+
+.report-note { font-size: 15px; line-height: 1.45; color: var(--text-dim); margin-top: 10px; }

@@ -1,0 +1,12 @@
+# Dependencies and build output
+node_modules/
+dist/
+
+# PRIVACY GUARD — Michael's real data must never reach GitHub.
+# These patterns block the real backup/sync files in any folder.
+*pistol-tracker-sync*.json
+*pistol-tracker-backup*.json
+*.flog
+
+# OS noise
+.DS_Store

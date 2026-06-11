@@ -1,0 +1,88 @@
+{
+  "_lastModified": 1781000000000,
+  "settings": { "ownerName": "Test Owner", "theme": "light", "version": "1.9" },
+  "firearms": [
+    {
+      "id": "fa-1", "name": "Test Erebus", "manufacturer": "Atlas Gunworks", "model": "Erebus",
+      "caliber": "9mm", "serialNumber": "T 0001", "dateAcquired": "", "startingRoundCount": 100,
+      "recoilSpringInterval": 5000, "recoilSpringWeight": "10 lb", "notes": "test gun",
+      "barrelName": "", "barrelInstallDate": "", "barrelStartRounds": 0,
+      "insurancePhotos": ["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="]
+    },
+    {
+      "id": "fa-2", "name": "Old Wingmaster", "manufacturer": "Remington", "model": "870",
+      "caliber": "12ga", "serialNumber": null, "dateAcquired": "2024-04-15", "startingRoundCount": 0,
+      "insurancePhotos": []
+    }
+  ],
+  "sessions": [
+    {
+      "id": "se-1", "date": "2026-04-28", "type": "practice", "firearmId": "fa-1",
+      "location": "Test Range", "distances": "7yd", "notes": "single gun",
+      "totalRounds": 300,
+      "ammoUsage": [{ "ammoId": "am-1", "rounds": 300 }],
+      "drills": [{ "name": "Bill Drill", "distance": "7", "time": 2.1, "score": null, "maxScore": null, "notes": "" }],
+      "targetImages": ["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+      "malfunctions": [], "selfRating": { "focus": 5, "fundamentals": 4, "satisfaction": 5 }
+    },
+    {
+      "id": "se-2", "date": "2026-05-26", "type": "practice", "firearmId": "fa-1",
+      "location": "Test Range", "distances": "", "notes": "split between two guns",
+      "totalRounds": 420,
+      "firearmSplits": [
+        { "firearmId": "fa-1", "rounds": 400 },
+        { "firearmId": "fa-2", "rounds": 20 }
+      ],
+      "ammoUsage": [{ "ammoId": "am-1", "rounds": 420 }],
+      "drills": [
+        { "name": "Bill Drill", "distance": "7", "time": null, "score": null, "maxScore": null, "notes": "" },
+        { "name": "Doubles 5yd", "distance": "5", "time": null, "score": null, "maxScore": null, "notes": "" }
+      ],
+      "targetImages": [], "malfunctions": [], "selfRating": null,
+      "rangeFee": 25
+    },
+    {
+      "id": "se-3", "date": "2026-06-01", "type": "dry_fire", "firearmId": "fa-1",
+      "location": "Home", "distances": "", "notes": "dry work",
+      "totalRounds": 50,
+      "ammoUsage": [], "drills": [], "targetImages": [], "malfunctions": [], "selfRating": null
+    },
+    {
+      "id": "se-4", "date": "2026-07-01", "type": "practice", "firearmId": "fa-1",
+      "location": "Test Range", "notes": "planned — must not count",
+      "totalRounds": 200, "planned": true,
+      "ammoUsage": [], "drills": [], "targetImages": [], "malfunctions": [], "selfRating": null
+    }
+  ],
+  "drillLibrary": [
+    { "name": "Bill Drill", "description": "6 from holster at 7.", "scoring": "time", "requiresHolster": true, "liveCompatible": true, "dryCompatible": true, "category": "speed" },
+    { "name": "Wall Drill", "description": "Dry only.", "scoring": "none", "requiresHolster": false, "liveCompatible": false, "dryCompatible": true, "category": "fundamentals" },
+    { "name": "Doubles 5yd", "description": "Pairs at 5.", "scoring": "time", "requiresHolster": false, "liveCompatible": true, "dryCompatible": false, "category": "speed" }
+  ],
+  "ammunition": [
+    { "id": "am-1", "brand": "Blazer Brass", "caliber": "9mm", "grain": "115", "bulletType": "FMJ", "quantity": 1000, "costPerRound": 0.30, "notes": "" }
+  ],
+  "purchases": [
+    { "id": "pu-1", "date": "2026-05-29", "category": "Gear / Equipment", "item": "Firing Pin Stop", "vendor": "Atlas Gunworks", "cost": 41.5, "notes": "" }
+  ],
+  "maintenance": [
+    { "id": "ma-1", "date": "2026-04-24", "firearmId": "fa-1", "type": "field_strip", "performedBy": "Self", "partsReplaced": "", "notes": "" }
+  ],
+  "malfunctions": [],
+  "magazines": [
+    { "id": "mg-1", "label": "A01", "firearmIds": ["fa-1"], "active": true, "totalRounds": 38, "springHistory": [], "notes": "" }
+  ],
+  "optics": [
+    { "id": "op-1", "firearmId": "fa-1", "make": "Trijicon", "model": "SRO", "installDate": "", "dotSize": "2.5 MOA", "zeroDist": "15 Yards", "mountHeight": "", "torqueSpec": "15 in lbs", "settingsSnapshot": "", "batteryLog": [], "notes": "" }
+  ],
+  "parts": [
+    { "id": "pt-1", "firearmId": "", "name": "Recoil Buffer", "quantity": 10, "partNumber": "", "datePurchased": "", "notes": "" }
+  ],
+  "goals": [],
+  "skillAssessments": [],
+  "matches": [],
+  "classifiers": [],
+  "trash": [
+    { "id": "old-trash-1", "type": "maintenance", "deletedAt": 1780000000000, "data": { "id": "ma-99", "type": "deep_clean" } }
+  ]
+}
