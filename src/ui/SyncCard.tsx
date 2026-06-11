@@ -5,7 +5,7 @@ import { useRef, useState } from 'react';
 import { buildFlog, parseFlog } from '../lib/flog.ts';
 import type { Snapshot } from '../lib/flog.ts';
 import { exportSnapshot, localLastModified, restoreSnapshot } from '../lib/db.ts';
-import { ConfirmSheet } from './Sheet.tsx';
+import { ConfirmSheet, Sheet } from './Sheet.tsx';
 
 function stampWords(ms: number): string {
   if (!ms) return 'never';
@@ -16,6 +16,7 @@ function stampWords(ms: number): string {
 
 type Stage =
   | { name: 'idle'; message?: string }
+  | { name: 'push-ready'; url: string; summary: string }
   | { name: 'confirm'; snapshot: Snapshot; warning: string; label: string }
   | { name: 'working'; message: string };
 
@@ -32,19 +33,23 @@ export function SyncCard({ onPulled }: { onPulled: () => void }) {
       new Uint8Array(ab).set(bytes);
       const blob = new Blob([ab], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'FirearmLog.flog';
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
       const sessions = (snapshot.stores.sessions ?? []).length;
       setStage({
-        name: 'idle',
-        message: `Data file created (${sessions} sessions, ${snapshot.media.length} photos/videos). On iPhone: tap the download, then use the Share button → "Save to Files" → iCloud Drive, replacing the old FirearmLog.flog.`
+        name: 'push-ready',
+        url,
+        summary: `${sessions} sessions and ${snapshot.media.length} photos/videos, packed and ready.`
       });
     } catch (e) {
       setStage({ name: 'idle', message: e instanceof Error ? e.message : 'The push did not finish.' });
     }
+  }
+
+  function pushDone(url: string) {
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+    setStage({
+      name: 'idle',
+      message: 'File saved? Great — pull it on your other device and you\u2019re in sync.'
+    });
   }
 
   async function filePicked(file: File) {
@@ -103,6 +108,28 @@ export function SyncCard({ onPulled }: { onPulled: () => void }) {
             <p className="report-note" style={{ marginTop: 10 }}>{stage.message}</p>
           )}
         </>
+      )}
+      {stage.name === 'push-ready' && (
+        <Sheet title="Your Data File Is Ready" onClose={() => pushDone(stage.url)}>
+          <p className="report-note" style={{ marginBottom: 10 }}>{stage.summary}</p>
+          <p className="report-note" style={{ marginBottom: 10 }}>
+            After you tap the blue button, your iPhone shows a file preview screen.
+            Here's what to do on it:
+          </p>
+          <ol className="sync-steps">
+            <li>Tap <strong>"Open in…"</strong> in the middle of the screen.</li>
+            <li>In the menu that slides up, tap <strong>Save to Files</strong>.</li>
+            <li>Pick <strong>iCloud Drive</strong>, then tap <strong>Save</strong>.</li>
+            <li>If it asks about an existing FirearmLog.flog, choose <strong>Replace</strong>.</li>
+          </ol>
+          <p className="report-note" style={{ marginBottom: 12 }}>
+            (On a desktop computer the file simply lands in your Downloads folder — move it to iCloud Drive.)
+          </p>
+          <a className="button" href={stage.url} download="FirearmLog.flog"
+            onClick={() => pushDone(stage.url)}>
+            Save the File Now
+          </a>
+        </Sheet>
       )}
       {stage.name === 'confirm' && (
         <ConfirmSheet
