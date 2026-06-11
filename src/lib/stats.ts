@@ -9,7 +9,7 @@ export function sessionRounds(s: Pick<Session, 'guns'>): number {
 }
 
 interface FirearmLike { id: string; startingRoundCount: number; }
-interface MatchLike { firearmId?: unknown; totalRounds?: unknown; }
+type MatchLike = Record<string, unknown>;
 
 /**
  * Lifetime round count for one gun: starting count + every non-planned
