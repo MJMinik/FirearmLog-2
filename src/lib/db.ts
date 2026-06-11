@@ -2,6 +2,8 @@
 // This module is the seam where a cloud sync service could plug in later.
 
 import type { DataSet, Media } from './types.ts';
+import type { Snapshot } from './flog.ts';
+import { newestStamp } from './flog.ts';
 
 const DB_NAME = 'firearmlog';
 const SCHEMA_VERSION = 1;
@@ -164,4 +166,65 @@ export async function commitDataSet(
 export async function getSettings<T>(): Promise<T | undefined> {
   const row = await getOne<{ key: string; value: T }>('meta', 'settings');
   return row?.value;
+}
+
+/** Every store except media, for snapshot export. */
+const SNAPSHOT_STORES: StoreName[] = [
+  'firearms', 'sessions', 'drills', 'ammunition', 'purchases',
+  'maintenance', 'malfunctions', 'magazines', 'optics', 'parts',
+  'goals', 'skills', 'matches', 'classifiers', 'references', 'trash', 'meta'
+];
+
+/** Everything in the database, packaged to travel (spec §7.1). */
+export async function exportSnapshot(): Promise<Snapshot> {
+  const stores: Record<string, unknown[]> = {};
+  for (const name of SNAPSHOT_STORES) stores[name] = await getAll(name);
+  const media = await getAll<Media>('media');
+  return {
+    exportedAt: Date.now(),
+    lastModified: newestStamp(stores, media),
+    stores,
+    media
+  };
+}
+
+/** Newest real change on this device (never bumped by mere app-open). */
+export async function localLastModified(): Promise<number> {
+  const stores: Record<string, unknown[]> = {};
+  for (const name of SNAPSHOT_STORES) stores[name] = await getAll(name);
+  const media = await getAll<Media>('media');
+  return newestStamp(stores, media);
+}
+
+/** Pull: REPLACE everything on this device with the file's contents. */
+export async function restoreSnapshot(
+  snapshot: Snapshot,
+  onProgress?: (done: number, total: number) => void
+): Promise<void> {
+  const db = await openDb();
+
+  // Wipe and rewrite the regular stores in one transaction — all or nothing.
+  const tx = db.transaction([...SNAPSHOT_STORES], 'readwrite');
+  for (const name of SNAPSHOT_STORES) {
+    const os = tx.objectStore(name);
+    os.clear();
+    for (const r of snapshot.stores[name] ?? []) os.put(r as object);
+  }
+  await txDone(tx);
+
+  // Media: wipe, then one photo per transaction (iPhone Safari friendly).
+  const wipe = db.transaction('media', 'readwrite');
+  wipe.objectStore('media').clear();
+  await txDone(wipe);
+  const total = snapshot.media.length;
+  let done = 0;
+  onProgress?.(done, total);
+  for (const m of snapshot.media) {
+    const mtx = db.transaction('media', 'readwrite');
+    mtx.objectStore('media').put(m);
+    await txDone(mtx);
+    done += 1;
+    onProgress?.(done, total);
+    await new Promise((r) => setTimeout(r, 0));
+  }
 }

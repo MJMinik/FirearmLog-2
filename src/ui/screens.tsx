@@ -6,6 +6,7 @@ import { getAll } from '../lib/db.ts';
 import { formatDayKey } from '../lib/dates.ts';
 import { sessionRounds, totalRounds } from '../lib/stats.ts';
 import { ImportFlow } from './ImportFlow.tsx';
+import { SyncCard } from './SyncCard.tsx';
 import type { View } from './nav.ts';
 
 function useData(refreshKey: number) {
@@ -161,6 +162,7 @@ export function MoreScreen({ refreshKey, onImported, open }: {
           <span className="value">›</span>
         </button>
       </div>
+      <SyncCard onPulled={onImported} />
       <div className="card">
         <h2>Settings &amp; Data</h2>
         <p className="report-note" style={{ marginBottom: 12 }}>
