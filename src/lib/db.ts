@@ -104,7 +104,6 @@ export async function commitDataSet(
   };
   putAll('firearms', data.firearms);
   putAll('sessions', data.sessions);
-  putAll('drills', data.drills);
   putAll('ammunition', data.ammunition);
   putAll('purchases', data.purchases);
   putAll('maintenance', data.maintenance);
@@ -121,6 +120,14 @@ export async function commitDataSet(
     tx.objectStore('meta').put({ key: 'settings', value: settings });
   }
   await txDone(tx);
+
+  // Imports REPLACE the drill library (old imports may have left random-ID
+  // copies). Safe today because drills only come from imports; revisit when
+  // in-app drill editing lands so custom drills survive a re-import.
+  const dtx0 = db.transaction('drills', 'readwrite');
+  dtx0.objectStore('drills').clear();
+  for (const d of data.drills) dtx0.objectStore('drills').put(d);
+  await txDone(dtx0);
 
   // Re-imports must never duplicate photos: clear out any existing photos
   // that belong to the records we just (re)wrote, then save the fresh set.

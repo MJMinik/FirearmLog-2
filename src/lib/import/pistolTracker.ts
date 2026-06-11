@@ -253,8 +253,11 @@ export function importPistolTracker(
     }, id, now);
   });
 
-  // Drill library — old drills have no IDs (name was the key), so they get new ones.
+  // Drill library — old drills have no IDs (name was the key), so each gets a
+  // stable ID derived from its name: re-importing overwrites, never duplicates.
   // Pistol Tracker drills are pistol drills; user can broaden categories later.
+  const drillId = (name: string) =>
+    'dr-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const drills: DrillDef[] = (old.drillLibrary ?? []).map(d => {
     const live = d.liveCompatible !== false;
     const dry = d.dryCompatible === true;
@@ -269,7 +272,7 @@ export function importPistolTracker(
       requiresHolster: d.requiresHolster === true,
       tags: typeof d.category === 'string' && d.category ? [d.category] : [],
       legacy: takeRest(d, mapped)
-    }, newId('dr'), now);
+    }, drillId(str(d.name)), now);
   });
 
   const ammunition: Ammunition[] = (old.ammunition ?? []).map(a => stamp({

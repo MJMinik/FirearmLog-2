@@ -117,6 +117,8 @@ test('re-importing the same file produces identical photo IDs (no duplicates)', 
   const a = importPistolTracker(old1, {}, NOW);
   const b = importPistolTracker(old2, {}, NOW + 5000);
   assert.deepEqual(a.data.media.map(m => m.id), b.data.media.map(m => m.id));
+  assert.deepEqual(a.data.drills.map(d => d.id), b.data.drills.map(d => d.id));
+  assert.equal(a.data.drills[0].id, 'dr-bill-drill');
 });
 
 test('trash and settings are carried over', () => {
