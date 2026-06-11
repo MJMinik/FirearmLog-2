@@ -12,20 +12,13 @@ Every push to `main` triggers `.github/workflows/deploy.yml`, which installs
 dependencies, **runs all tests (a failing test blocks publishing)**, builds the app,
 and deploys it to GitHub Pages.
 
-## One-time setup (Michael)
+## Where things live
 
-1. Install **GitHub Desktop** from https://desktop.github.com and sign in with your GitHub account.
-2. In GitHub Desktop: **File → New Repository**. Name: `app`. Local Path: your
-   `Claude Projects/FirearmLog` folder. Git ignore: None. License: None. Click **Create Repository**.
-   (It adopts this existing `app` folder — nothing is moved.)
-3. Click **Publish repository**. In that dialog, change the name to **FirearmLog**,
-   UNCHECK "Keep this code private" (GitHub Pages needs a public repo on a free
-   account — the app's code is public; your shooting data never goes to GitHub), then publish.
-4. On github.com, open the new FirearmLog repo → **Settings → Pages** → under
-   "Build and deployment", set **Source: GitHub Actions**.
-5. Back in GitHub Desktop, click **Repository → Push** (or it may already be pushed).
-   The robot builds for ~2 minutes. The app appears at
-   `https://<your-username>.github.io/FirearmLog/`.
+- This folder (`Claude Projects/FirearmLog/FirearmLog`) is the local repository that
+  GitHub Desktop watches. The GitHub copy is `MJMinik/FirearmLog-2` (rename optional).
+- One-time Pages setup: on github.com, repo **Settings -> Pages** -> under
+  "Build and deployment", set **Source: GitHub Actions**.
+- The live app: `https://mjminik.github.io/FirearmLog-2/` (follows the repo name).
 
 ## Every update after that
 
