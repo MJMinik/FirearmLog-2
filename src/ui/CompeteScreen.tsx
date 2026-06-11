@@ -1,7 +1,7 @@
 // The Compete tab (spec §11): matches, classifiers, classification progress,
 // and the season at a glance.
 import { useEffect, useMemo, useState } from 'react';
-import type { Classifier, Firearm, Match } from '../lib/types.ts';
+import type { Classifier, Match } from '../lib/types.ts';
 import { deleteOne, getAll, getOne, putOne } from '../lib/db.ts';
 import { formatDayKey, todayKey } from '../lib/dates.ts';
 import { newId } from '../lib/id.ts';
