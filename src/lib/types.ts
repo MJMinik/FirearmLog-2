@@ -95,11 +95,17 @@ export interface Ammunition extends BaseRecord, Imported {
 
 export interface Purchase extends BaseRecord, Imported {
   date: string;
-  category: string;
+  category: string; // 'Ammo Purchase' | 'Range Fee' | 'Gear / Equipment' | 'Service / Repair' | 'Training / Class' | 'Travel' | 'Other'
   item: string;
   vendor: string;
   cost: number;
   notes: string;
+  /** Ammo Purchase only: which can this fed (drives FIFO costing — spec §12). */
+  ammoId?: string | null;
+  /** Ammo Purchase only: rounds in the lot. */
+  rounds?: number | null;
+  /** True if saving this purchase bumped the can's on-hand count (so edits/deletes can undo it). */
+  addedToInventory?: boolean;
 }
 
 export interface MaintenanceEntry extends BaseRecord, Imported {

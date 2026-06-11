@@ -294,7 +294,10 @@ export function importPistolTracker(
     vendor: str(p.vendor),
     cost: num(p.cost),
     notes: str(p.notes),
-    legacy: takeRest(p, ['id', 'date', 'category', 'item', 'vendor', 'cost', 'notes'])
+    ammoId: typeof p.ammoId === 'string' && p.ammoId ? p.ammoId : null,
+    rounds: numOrNull(p.rounds),
+    addedToInventory: p.addToInventory === true,
+    legacy: takeRest(p, ['id', 'date', 'category', 'item', 'vendor', 'cost', 'notes', 'ammoId', 'rounds', 'addToInventory'])
   }, String(p.id), now));
 
   const maintenance: MaintenanceEntry[] = (old.maintenance ?? []).map(m => stamp({

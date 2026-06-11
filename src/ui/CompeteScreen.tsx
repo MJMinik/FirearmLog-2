@@ -7,6 +7,7 @@ import { formatDayKey, todayKey } from '../lib/dates.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
 import { DIVISIONS, classificationProgress } from '../lib/competition.ts';
+import { matchFee } from '../lib/costing.ts';
 import type { View } from './nav.ts';
 import { ConfirmSheet } from './Sheet.tsx';
 
@@ -39,7 +40,8 @@ export function CompeteScreen({ refreshKey, open }: {
   const thisYear = todayKey().slice(0, 4);
   const seasonMatches = matches.filter((m) => m.date.startsWith(thisYear));
   const seasonPercents = seasonMatches.map((m) => m.matchPercent).filter((p): p is number => p !== null);
-  const seasonFees = seasonMatches.reduce((s, m) => s + (m.entryFee ?? 0), 0);
+  // Same single-source fee math the Costs screen uses (handles old imported matches too).
+  const seasonFees = seasonMatches.reduce((s, m) => s + matchFee(m), 0);
 
   if (!loaded) return <div className="screen" />;
 

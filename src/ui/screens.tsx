@@ -1,9 +1,11 @@
 // Tab screens. Home and Log are live against the database; Compete and
 // Progress arrive in M5 and M7 and say so in plain language.
 import { useEffect, useState } from 'react';
-import type { Firearm, MaintenanceEntry, Match, Reference, Session } from '../lib/types.ts';
+import type { Ammunition, Firearm, MaintenanceEntry, Match, Reference, Session } from '../lib/types.ts';
 import { getAll } from '../lib/db.ts';
 import { maintenanceAlerts } from '../lib/maintenance.ts';
+import { lowAmmo } from '../lib/costing.ts';
+import { ammoLabel } from './AmmoScreens.tsx';
 import { buildRefLookup } from '../lib/referenceData.ts';
 import { formatDayKey } from '../lib/dates.ts';
 import { sessionRounds, totalRounds } from '../lib/stats.ts';
@@ -19,14 +21,15 @@ function useData(refreshKey: number) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceEntry[]>([]);
   const [references, setReferences] = useState<Reference[]>([]);
+  const [ammo, setAmmo] = useState<Ammunition[]>([]);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [f, s, m, mt, r] = await Promise.all([
+      const [f, s, m, mt, r, am] = await Promise.all([
         getAll<Firearm>('firearms'), getAll<Session>('sessions'),
         getAll<Match>('matches'), getAll<MaintenanceEntry>('maintenance'),
-        getAll<Reference>('references')
+        getAll<Reference>('references'), getAll<Ammunition>('ammunition')
       ]);
       if (!alive) return;
       setFirearms(f);
@@ -34,11 +37,12 @@ function useData(refreshKey: number) {
       setMatches(m);
       setMaintenance(mt);
       setReferences(r);
+      setAmmo(am);
       setLoaded(true);
     })();
     return () => { alive = false; };
   }, [refreshKey]);
-  return { firearms, sessions, matches, maintenance, references, loaded };
+  return { firearms, sessions, matches, maintenance, references, ammo, loaded };
 }
 
 function SessionRow({ s, firearms, onTap }: { s: Session; firearms: Firearm[]; onTap: () => void }) {
@@ -59,11 +63,12 @@ function SessionRow({ s, firearms, onTap }: { s: Session; firearms: Firearm[]; o
 export function HomeScreen({ refreshKey, onImported, open }: {
   refreshKey: number; onImported: () => void; open: (v: View) => void;
 }) {
-  const { firearms, sessions, matches, maintenance, references, loaded } = useData(refreshKey);
+  const { firearms, sessions, matches, maintenance, references, ammo, loaded } = useData(refreshKey);
   if (!loaded) return <div className="screen" />;
 
   const empty = firearms.length === 0 && sessions.length === 0;
   const alerts = maintenanceAlerts(firearms, buildRefLookup(references), sessions, maintenance, new Date());
+  const lowCans = lowAmmo(ammo);
   return (
     <div className="screen">
       <h1 className="large-title">FirearmLog</h1>
@@ -89,7 +94,7 @@ export function HomeScreen({ refreshKey, onImported, open }: {
               <div className="cap">Lifetime rounds</div>
             </div>
           </div>
-          {alerts.length > 0 && (
+          {(alerts.length > 0 || lowCans.length > 0) && (
             <div className="card" style={{ marginTop: 16 }}>
               <h2>Needs Attention</h2>
               {alerts.map((a, i) => (
@@ -104,9 +109,18 @@ export function HomeScreen({ refreshKey, onImported, open }: {
                   </span>
                 </button>
               ))}
+              {lowCans.map((a) => (
+                <button className="row-tap" key={a.id} onClick={() => open({ kind: 'ammo' })}>
+                  <span className="label">
+                    Low ammo: {ammoLabel(a)}
+                    <div className="row-sub">{(a.quantity || 0).toLocaleString()} rounds left</div>
+                  </span>
+                  <span className="badge warn-badge">Low</span>
+                </button>
+              ))}
             </div>
           )}
-          <div className="card" style={{ marginTop: alerts.length > 0 ? 0 : 16 }}>
+          <div className="card" style={{ marginTop: alerts.length > 0 || lowCans.length > 0 ? 0 : 16 }}>
             <h2>Recent Sessions</h2>
             {sessions.slice(0, 5).map((s) => (
               <SessionRow key={s.id} s={s} firearms={firearms}
@@ -206,6 +220,14 @@ export function MoreScreen({ refreshKey, onImported, open }: {
         </button>
         <button className="row-tap" onClick={() => open({ kind: 'magazines' })}>
           <span className="label">Magazines</span>
+          <span className="value">›</span>
+        </button>
+        <button className="row-tap" onClick={() => open({ kind: 'ammo' })}>
+          <span className="label">Ammo</span>
+          <span className="value">›</span>
+        </button>
+        <button className="row-tap" onClick={() => open({ kind: 'costs' })}>
+          <span className="label">Costs &amp; Purchases</span>
           <span className="value">›</span>
         </button>
         <button className="row-tap" onClick={() => open({ kind: 'maintenance' })}>

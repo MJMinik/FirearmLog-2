@@ -15,6 +15,8 @@ import { DrillsScreen, DrillForm } from './ui/DrillsScreen.tsx';
 import { MagazinesScreen, MagazineForm } from './ui/MagazinesScreen.tsx';
 import { ReferenceList, ReferenceDetail, ReferenceForm } from './ui/ReferenceScreens.tsx';
 import { MaintenanceOverview, MaintenanceForm } from './ui/MaintenanceScreens.tsx';
+import { AmmoScreen, AmmoForm } from './ui/AmmoScreens.tsx';
+import { CostsScreen, PurchaseForm } from './ui/CostsScreen.tsx';
 
 export function App() {
   const [tab, setTabState] = useState<TabId>('home');
@@ -109,6 +111,24 @@ export function App() {
     content = <ClassifierForm id={v.id}
       onCancel={() => setView(null)}
       onSaved={() => { refresh(); setView(null); }} />;
+  } else if (view?.kind === 'ammo') {
+    content = <AmmoScreen refreshKey={refreshKey}
+      onBack={() => setView(null)}
+      openForm={(aid) => setView({ kind: 'ammo-form', id: aid })} />;
+  } else if (view?.kind === 'ammo-form') {
+    const v = view;
+    content = <AmmoForm id={v.id}
+      onCancel={() => setView({ kind: 'ammo' })}
+      onSaved={() => { refresh(); setView({ kind: 'ammo' }); }} />;
+  } else if (view?.kind === 'costs') {
+    content = <CostsScreen refreshKey={refreshKey}
+      onBack={() => setView(null)}
+      openForm={(pid) => setView({ kind: 'purchase-form', id: pid })} />;
+  } else if (view?.kind === 'purchase-form') {
+    const v = view;
+    content = <PurchaseForm id={v.id}
+      onCancel={() => setView({ kind: 'costs' })}
+      onSaved={() => { refresh(); setView({ kind: 'costs' }); }} />;
   } else if (tab === 'home') {
     content = <HomeScreen refreshKey={refreshKey} onImported={refresh} open={setView} />;
   } else if (tab === 'log') {

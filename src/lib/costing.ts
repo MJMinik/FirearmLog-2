@@ -1,0 +1,296 @@
+// ALL money math lives here (spec §3.5.8, §12) — pure functions, no DOM, no
+// IndexedDB, fully unit-tested. The single-source rule: a session's range fee
+// and a match's entry fee are entered once and read from here by every screen,
+// so nothing can ever double-count. The old app's F2 bug (multi-gun sessions
+// double-counting per-gun spend) is pinned down by a unit test.
+
+// ---- Narrow shapes (structural typing keeps tests dependency-free and
+// ---- avoids the Match[]-vs-MatchLike CI failures we hit in M5).
+
+export interface UsageLike { ammoId: string; rounds: number }
+
+export interface CostSessionLike {
+  id: string;
+  date: string;
+  planned?: boolean;
+  rangeFee?: number | null;
+  ammoUsage?: UsageLike[];
+  guns?: { firearmId: string; rounds: number }[];
+}
+
+export interface CostPurchaseLike {
+  id: string;
+  date: string;
+  category: string;
+  cost: number;
+  ammoId?: string | null;
+  rounds?: number | null;
+  legacy?: Record<string, unknown>;
+}
+
+export interface CostMatchLike {
+  date?: string;
+  firearmId?: string;
+  entryFee?: number | null;
+  /** Old Pistol Tracker matches carried their fee in a field named `cost`. */
+  cost?: unknown;
+  totalRounds?: number | null;
+}
+
+export interface AmmoLike {
+  id: string;
+  quantity: number;
+  costPerRound: number;
+}
+
+const money = (v: unknown): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v
+    : typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v)
+    : 0;
+
+export const isAmmoPurchase = (p: CostPurchaseLike): boolean =>
+  p.category.toLowerCase() === 'ammo purchase';
+
+export const isRangeFeePurchase = (p: CostPurchaseLike): boolean =>
+  p.category.toLowerCase() === 'range fee';
+
+/**
+ * Which ammo can a purchase feeds, and how many rounds. Reads the formal
+ * fields first, then falls back to the `legacy` bag so data Michael imported
+ * BEFORE these fields existed still costs correctly without a re-import.
+ */
+export function purchaseAmmoLink(p: CostPurchaseLike): { ammoId: string; rounds: number } | null {
+  if (!isAmmoPurchase(p)) return null;
+  const ammoId = (typeof p.ammoId === 'string' && p.ammoId)
+    || (typeof p.legacy?.ammoId === 'string' && p.legacy.ammoId)
+    || '';
+  const rounds = typeof p.rounds === 'number' && Number.isFinite(p.rounds) && p.rounds > 0
+    ? p.rounds
+    : money(p.legacy?.rounds);
+  if (!ammoId || !(rounds > 0) || !(money(p.cost) > 0)) return null;
+  return { ammoId, rounds };
+}
+
+/** A match's entry fee — entryFee if set, else the old app's `cost` field. */
+export function matchFee(m: CostMatchLike): number {
+  if (typeof m.entryFee === 'number' && Number.isFinite(m.entryFee)) return m.entryFee;
+  return money(m.cost);
+}
+
+// ---- FIFO ammo costing (mirrors the old app's verified engine) ----
+// Each linked Ammo Purchase is a "lot" with a unit cost. Walking sessions in
+// date order, every round shot consumes from the oldest unspent lot of that
+// ammo. Bought 1,500 @ $0.40 in Jan and 500 @ $0.20 in Feb, shot 1,000 in
+// March and 1,000 in April → March costs $0.40/rd, April $0.30/rd.
+
+interface Lot { date: string; id: string; unitCost: number; remaining: number }
+
+export interface FifoResult {
+  /** sessionId → total FIFO-allocated ammo cost */
+  sessionCosts: Record<string, number>;
+  /** sessionId → rounds a purchase lot actually covered */
+  sessionRoundsCovered: Record<string, number>;
+  /** ammoId → its lots after consumption (for "what's left in the can" math) */
+  lotsBySku: Record<string, Lot[]>;
+}
+
+export function computeFifoCosts(
+  purchases: CostPurchaseLike[],
+  sessions: CostSessionLike[]
+): FifoResult {
+  const lotsBySku: Record<string, Lot[]> = {};
+  for (const p of purchases) {
+    const link = purchaseAmmoLink(p);
+    if (!link) continue;
+    (lotsBySku[link.ammoId] ??= []).push({
+      date: p.date || '', id: p.id,
+      unitCost: money(p.cost) / link.rounds,
+      remaining: link.rounds
+    });
+  }
+  for (const sku of Object.keys(lotsBySku)) {
+    lotsBySku[sku].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  }
+
+  const sessionCosts: Record<string, number> = {};
+  const sessionRoundsCovered: Record<string, number> = {};
+  const ordered = [...sessions].sort((a, b) =>
+    (a.date || '').localeCompare(b.date || '') || a.id.localeCompare(b.id));
+  for (const s of ordered) {
+    let total = 0;
+    let covered = 0;
+    if (!s.planned) {
+      for (const u of s.ammoUsage ?? []) {
+        const lots = lotsBySku[u.ammoId];
+        if (!lots) continue;
+        let needed = u.rounds || 0;
+        for (const lot of lots) {
+          if (needed <= 0) break;
+          if (lot.remaining <= 0) continue;
+          const take = Math.min(lot.remaining, needed);
+          total += take * lot.unitCost;
+          covered += take;
+          lot.remaining -= take;
+          needed -= take;
+        }
+      }
+    }
+    sessionCosts[s.id] = total;
+    sessionRoundsCovered[s.id] = covered;
+  }
+  return { sessionCosts, sessionRoundsCovered, lotsBySku };
+}
+
+/**
+ * Weighted-average cost/round of what's still in the can right now, from the
+ * unspent FIFO lots. Null when no purchase data exists for this ammo.
+ */
+export function ammoCurrentCostPerRound(
+  ammoId: string,
+  purchases: CostPurchaseLike[],
+  sessions: CostSessionLike[]
+): number | null {
+  const lots = computeFifoCosts(purchases, sessions).lotsBySku[ammoId] ?? [];
+  let cost = 0, rounds = 0;
+  for (const lot of lots) {
+    if (lot.remaining > 0) { cost += lot.remaining * lot.unitCost; rounds += lot.remaining; }
+  }
+  return rounds > 0 ? cost / rounds : null;
+}
+
+/**
+ * Ammo cost of one session: FIFO when purchase lots cover it, otherwise the
+ * flat cost/round typed on the ammo record (sessions that pre-date purchase
+ * tracking).
+ */
+export function sessionAmmoCost(
+  s: CostSessionLike,
+  fifo: FifoResult,
+  ammo: AmmoLike[]
+): number {
+  if (s.planned) return 0;
+  if ((fifo.sessionRoundsCovered[s.id] ?? 0) > 0) return fifo.sessionCosts[s.id] ?? 0;
+  let total = 0;
+  for (const u of s.ammoUsage ?? []) {
+    const a = ammo.find((x) => x.id === u.ammoId);
+    if (a && a.costPerRound > 0) total += (u.rounds || 0) * a.costPerRound;
+  }
+  return total;
+}
+
+/**
+ * Fraction of a session's cost that belongs to one gun, prorated by that
+ * gun's share of the session's rounds. Shares always sum to 1 across the
+ * session's guns — the F2 double-count bug, killed by unit test.
+ */
+export function firearmShare(s: CostSessionLike, firearmId: string): number {
+  const guns = s.guns ?? [];
+  if (guns.length === 0) return 0;
+  const total = guns.reduce((t, g) => t + (g.rounds || 0), 0);
+  if (total === 0) return guns.some((g) => g.firearmId === firearmId) ? 1 / guns.length : 0;
+  const mine = guns.find((g) => g.firearmId === firearmId);
+  return mine ? (mine.rounds || 0) / total : 0;
+}
+
+// ---- Roll-ups for the Costs screen ----
+
+export interface CostTotals {
+  ammoBought: number;   // money handed over for ammo (purchases)
+  rangeFees: number;    // session fees + purchases categorized "Range Fee"
+  matchFees: number;    // match entry fees (single source — spec §12.2)
+  gearAndOther: number; // every remaining purchase category
+  total: number;        // each dollar counted exactly once
+}
+
+export function costTotals(
+  sessions: CostSessionLike[],
+  purchases: CostPurchaseLike[],
+  matches: CostMatchLike[]
+): CostTotals {
+  let ammoBought = 0, rangeFees = 0, gearAndOther = 0;
+  for (const p of purchases) {
+    const c = money(p.cost);
+    if (isAmmoPurchase(p)) ammoBought += c;
+    else if (isRangeFeePurchase(p)) rangeFees += c;
+    else gearAndOther += c;
+  }
+  for (const s of sessions) {
+    if (!s.planned) rangeFees += money(s.rangeFee);
+  }
+  const matchFees = matches.reduce((t, m) => t + matchFee(m), 0);
+  return {
+    ammoBought, rangeFees, matchFees, gearAndOther,
+    total: ammoBought + rangeFees + matchFees + gearAndOther
+  };
+}
+
+/** Rounds actually fired in a period (sessions + matches, planned excluded). */
+export function roundsFired(sessions: CostSessionLike[], matches: CostMatchLike[]): number {
+  let total = 0;
+  for (const s of sessions) {
+    if (s.planned) continue;
+    for (const g of s.guns ?? []) total += g.rounds || 0;
+  }
+  for (const m of matches) {
+    if (typeof m.totalRounds === 'number' && Number.isFinite(m.totalRounds)) total += m.totalRounds;
+  }
+  return total;
+}
+
+export interface GunSpend { ammo: number; rangeFees: number; matchFees: number; total: number }
+
+/**
+ * What one gun has cost to feed and run: its prorated share of every
+ * session's ammo cost and range fee, plus entry fees for matches it shot.
+ */
+export function gunSpend(
+  firearmId: string,
+  sessions: CostSessionLike[],
+  purchases: CostPurchaseLike[],
+  matches: CostMatchLike[],
+  ammo: AmmoLike[]
+): GunSpend {
+  const fifo = computeFifoCosts(purchases, sessions);
+  let ammoCost = 0, rangeFees = 0;
+  for (const s of sessions) {
+    if (s.planned) continue;
+    const share = firearmShare(s, firearmId);
+    if (share === 0) continue;
+    ammoCost += sessionAmmoCost(s, fifo, ammo) * share;
+    rangeFees += money(s.rangeFee) * share;
+  }
+  const matchFees = matches
+    .filter((m) => m.firearmId === firearmId)
+    .reduce((t, m) => t + matchFee(m), 0);
+  return { ammo: ammoCost, rangeFees, matchFees, total: ammoCost + rangeFees + matchFees };
+}
+
+// ---- Inventory ----
+
+/**
+ * New on-hand quantities after a session's ammo usage changes from `before`
+ * to `after` (either may be empty — covers new session, edit, and delete).
+ * Returns only the cans whose count changed. Never goes below zero.
+ */
+export function inventoryAfterUsageChange(
+  ammo: AmmoLike[],
+  before: UsageLike[],
+  after: UsageLike[]
+): Map<string, number> {
+  const delta = new Map<string, number>();
+  for (const u of after) delta.set(u.ammoId, (delta.get(u.ammoId) ?? 0) + (u.rounds || 0));
+  for (const u of before) delta.set(u.ammoId, (delta.get(u.ammoId) ?? 0) - (u.rounds || 0));
+  const out = new Map<string, number>();
+  for (const [ammoId, d] of delta) {
+    if (d === 0) continue;
+    const a = ammo.find((x) => x.id === ammoId);
+    if (!a) continue;
+    out.set(ammoId, Math.max(0, (a.quantity || 0) - d));
+  }
+  return out;
+}
+
+/** Cans running low — 50 rounds or fewer left, but not deliberately empty. */
+export function lowAmmo<T extends AmmoLike>(ammo: T[]): T[] {
+  return ammo.filter((a) => (a.quantity || 0) > 0 && (a.quantity || 0) <= 50);
+}

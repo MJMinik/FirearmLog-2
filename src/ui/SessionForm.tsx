@@ -3,13 +3,15 @@
 // ratings, fee, notes. Removals are STAGED — cancel really cancels (rule F3).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  DrillDef, DrillResult, Firearm, GunCategory, MalfunctionEntry, Media, Session
+  Ammunition, DrillDef, DrillResult, Firearm, GunCategory, MalfunctionEntry, Media, Session
 } from '../lib/types.ts';
 import { deleteOne, getAll, getOne, putOne } from '../lib/db.ts';
 import { todayKey } from '../lib/dates.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
 import { drillsForContext } from '../lib/drillFilter.ts';
+import { inventoryAfterUsageChange } from '../lib/costing.ts';
+import { ammoLabel } from './AmmoScreens.tsx';
 import { Sheet } from './Sheet.tsx';
 import { mediaUrl } from './media.ts';
 
@@ -28,6 +30,7 @@ interface DrillRow {
   name: string; distance: string; time: string; score: string; maxScore: string; notes: string;
 }
 interface MalfRow { firearmId: string; type: string; resolution: string; notes: string; }
+interface AmmoRow { ammoId: string; rounds: string; }
 interface NewFile { file: File; url: string; kind: 'image' | 'video'; }
 
 const toRow = (d: DrillResult): DrillRow => ({
@@ -53,6 +56,8 @@ export function SessionForm({ id, onSaved, onCancel }: {
   const [original, setOriginal] = useState<Session | null>(null);
   const [firearms, setFirearms] = useState<Firearm[]>([]);
   const [drillLib, setDrillLib] = useState<DrillDef[]>([]);
+  const [ammoLib, setAmmoLib] = useState<Ammunition[]>([]);
+  const [ammoRows, setAmmoRows] = useState<AmmoRow[]>([]);
 
   const [kind, setKind] = useState('practice');
   const [date, setDate] = useState(todayKey());
@@ -75,10 +80,13 @@ export function SessionForm({ id, onSaved, onCancel }: {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [f, dl] = await Promise.all([getAll<Firearm>('firearms'), getAll<DrillDef>('drills')]);
+      const [f, dl, am] = await Promise.all([
+        getAll<Firearm>('firearms'), getAll<DrillDef>('drills'), getAll<Ammunition>('ammunition')
+      ]);
       if (!alive) return;
       setFirearms(f.sort((a, b) => a.name.localeCompare(b.name)));
       setDrillLib(dl);
+      setAmmoLib(am.sort((a, b) => ammoLabel(a).localeCompare(ammoLabel(b))));
       if (id !== undefined) {
         const [s, allMedia, allMalfs] = await Promise.all([
           getOne<Session>('sessions', id),
@@ -92,6 +100,7 @@ export function SessionForm({ id, onSaved, onCancel }: {
         for (const g of s.guns) r[g.firearmId] = String(g.rounds);
         setRounds(r);
         setDrills(s.drills.map(toRow));
+        setAmmoRows((s.ammoUsage ?? []).map((u) => ({ ammoId: u.ammoId, rounds: String(u.rounds) })));
         setExistingMedia(allMedia.filter((m) => m.ownerType === 'session' && m.ownerId === id));
         const mine = allMalfs.filter((m) => m.sessionId === id);
         setOldMalfIds(mine.map((m) => m.id));
@@ -163,6 +172,13 @@ export function SessionForm({ id, onSaved, onCancel }: {
       (d.maxScore !== null && !Number.isFinite(d.maxScore)));
     if (badDrill) { setProblem(`Check the numbers on "${badDrill.name}".`); return; }
 
+    const ammoUsage = ammoRows
+      .filter((r) => r.ammoId !== '')
+      .map((r) => ({ ammoId: r.ammoId, rounds: r.rounds.trim() === '' ? 0 : Number(r.rounds) }));
+    if (ammoUsage.some((u) => !Number.isFinite(u.rounds) || u.rounds < 0)) {
+      setProblem('Ammo rounds need to be plain numbers.'); return;
+    }
+
     const ratingEntries = Object.entries(ratings).filter(([, v]) => v !== '');
     const selfRating = ratingEntries.length
       ? Object.fromEntries(ratingEntries.map(([k, v]) => [k, Number(v)]))
@@ -176,15 +192,24 @@ export function SessionForm({ id, onSaved, onCancel }: {
       const now = Date.now();
       const fields = {
         date, type: kind, guns, location: location.trim(), notes: notes.trim(),
-        drills: drills.map(fromRow), selfRating, rangeFee: fee
+        drills: drills.map(fromRow), selfRating, rangeFee: fee, ammoUsage
       };
       if (original) {
         await putOne('sessions', stampUpdate({ ...original, ...fields }, now));
       } else {
         await putOne('sessions', stampNew({
-          ...fields, distances: '', ammoUsage: [], targetMediaIds: [],
+          ...fields, distances: '', targetMediaIds: [],
           malfunctions: [], planned: false, checklist: null
         }, sid, now));
+      }
+
+      // Ammo comes off the cans — only the CHANGE, so edits never double-deduct.
+      if (!original?.planned) {
+        const changes = inventoryAfterUsageChange(ammoLib, original?.ammoUsage ?? [], ammoUsage);
+        for (const [ammoId, quantity] of changes) {
+          const can = ammoLib.find((a) => a.id === ammoId);
+          if (can) await putOne('ammunition', stampUpdate({ ...can, quantity }, now));
+        }
       }
 
       // Staged photo/video changes commit only now (rule F3).
@@ -268,6 +293,41 @@ export function SessionForm({ id, onSaved, onCancel }: {
           );
         })}
       </div>
+
+      {kind !== 'dry_fire' && ammoLib.length > 0 && (
+        <div className="card">
+          <h2>Ammo Used</h2>
+          {ammoRows.map((r, i) => (
+            <div className="row" key={i}>
+              <select className="category-pick" aria-label={`Ammo ${i + 1}`} value={r.ammoId}
+                onChange={(e) => setAmmoRows((p) => p.map((x, n) => n === i ? { ...x, ammoId: e.target.value } : x))}>
+                <option value="">Pick ammo…</option>
+                {ammoLib.map((a) => <option key={a.id} value={a.id}>{ammoLabel(a)}</option>)}
+              </select>
+              <input className="rounds-input" type="number" inputMode="numeric" min="0"
+                placeholder="rounds" aria-label={`Rounds of ammo ${i + 1}`} value={r.rounds}
+                onChange={(e) => setAmmoRows((p) => p.map((x, n) => n === i ? { ...x, rounds: e.target.value } : x))} />
+              <button className="icon-btn" aria-label="Remove ammo row"
+                onClick={() => setAmmoRows((prev) => prev.filter((_, x) => x !== i))}>✕</button>
+            </div>
+          ))}
+          <button className="button secondary" onClick={() => setAmmoRows((prev) => [...prev, { ammoId: '', rounds: '' }])}>
+            + Add Ammo
+          </button>
+          {(() => {
+            const used = ammoRows.reduce((t, r) => t + (Number(r.rounds) || 0), 0);
+            const shot = Object.values(rounds).reduce((t, v) => t + (Number(v) || 0), 0);
+            return used > 0 && shot > 0 && used !== shot ? (
+              <p className="report-note">
+                Heads up: ammo rows total {used.toLocaleString()} but the guns above total{' '}
+                {shot.toLocaleString()}. You can still save — just check the numbers.
+              </p>
+            ) : (
+              <p className="report-note">Rounds come off the can when you save; fixing a number later puts the difference back.</p>
+            );
+          })()}
+        </div>
+      )}
 
       <div className="card">
         <h2>Drills</h2>

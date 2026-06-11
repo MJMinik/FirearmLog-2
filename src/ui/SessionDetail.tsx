@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import type { Firearm, MalfunctionEntry, Media, Session } from '../lib/types.ts';
-import { deleteOne, getAll, getOne } from '../lib/db.ts';
+import type { Ammunition, Firearm, MalfunctionEntry, Media, Purchase, Session } from '../lib/types.ts';
+import { deleteOne, getAll, getOne, putOne } from '../lib/db.ts';
 import { formatDayKey } from '../lib/dates.ts';
 import { sessionRounds } from '../lib/stats.ts';
+import { stampUpdate } from '../lib/stamps.ts';
+import { computeFifoCosts, inventoryAfterUsageChange, sessionAmmoCost } from '../lib/costing.ts';
+import { ammoLabel } from './AmmoScreens.tsx';
 import { mediaUrl } from './media.ts';
 import { ConfirmSheet } from './Sheet.tsx';
 import { PhotoSheet } from './PhotoSheet.tsx';
@@ -18,6 +21,8 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
   const [firearms, setFirearms] = useState<Firearm[]>([]);
   const [photos, setPhotos] = useState<Media[]>([]);
   const [malfs, setMalfs] = useState<MalfunctionEntry[]>([]);
+  const [ammo, setAmmo] = useState<Ammunition[]>([]);
+  const [ammoCost, setAmmoCost] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [viewing, setViewing] = useState<Media | null>(null);
   const [localBump, setLocalBump] = useState(0);
@@ -25,17 +30,22 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [s, f, media, allMalfs] = await Promise.all([
+      const [s, f, media, allMalfs, allAmmo, purchases, allSessions] = await Promise.all([
         getOne<Session>('sessions', id),
         getAll<Firearm>('firearms'),
         getAll<Media>('media'),
-        getAll<MalfunctionEntry>('malfunctions')
+        getAll<MalfunctionEntry>('malfunctions'),
+        getAll<Ammunition>('ammunition'),
+        getAll<Purchase>('purchases'),
+        getAll<Session>('sessions')
       ]);
       if (!alive || !s) return;
       setSession(s);
       setFirearms(f);
       setPhotos(media.filter((m) => m.ownerType === 'session' && m.ownerId === id));
       setMalfs(allMalfs.filter((m) => m.sessionId === id));
+      setAmmo(allAmmo);
+      setAmmoCost(sessionAmmoCost(s, computeFifoCosts(purchases, allSessions), allAmmo));
     })();
     return () => { alive = false; };
   }, [id, refreshKey, localBump]);
@@ -45,7 +55,15 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
   const gunName = (fid: string) => firearms.find((f) => f.id === fid)?.name ?? '—';
 
   async function reallyDelete() {
-    // The session's photos and malfunction records go with it.
+    // The session's photos and malfunction records go with it,
+    // and any ammo it used goes back on the can.
+    if (session && !session.planned) {
+      const changes = inventoryAfterUsageChange(ammo, session.ammoUsage ?? [], []);
+      for (const [ammoId, quantity] of changes) {
+        const can = ammo.find((a) => a.id === ammoId);
+        if (can) await putOne('ammunition', stampUpdate({ ...can, quantity }, Date.now()));
+      }
+    }
     for (const p of photos) await deleteOne('media', p.id);
     for (const m of malfs) await deleteOne('malfunctions', m.id);
     await deleteOne('sessions', id);
@@ -77,6 +95,27 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
           </div>
         ))}
       </div>
+
+      {(session.ammoUsage ?? []).length > 0 && (
+        <div className="card">
+          <h2>Ammo Used</h2>
+          {(session.ammoUsage ?? []).map((u, i) => {
+            const a = ammo.find((x) => x.id === u.ammoId);
+            return (
+              <div className="row" key={i}>
+                <span className="label">{a ? ammoLabel(a) : 'Ammo deleted'}</span>
+                <span className="value">{(u.rounds || 0).toLocaleString()} rds</span>
+              </div>
+            );
+          })}
+          {ammoCost > 0 && (
+            <div className="row">
+              <span className="label">Ammo cost</span>
+              <span className="value">${ammoCost.toFixed(2)}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {session.drills.length > 0 && (
         <div className="card">
@@ -155,7 +194,7 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
       {confirming && (
         <ConfirmSheet
           title="Delete this session?"
-          message="This removes the session, its photos, and its round counts. There's no undo."
+          message="This removes the session, its photos, and its round counts. Ammo it used goes back on the can. There's no undo."
           confirmLabel="Delete Session"
           onConfirm={() => void reallyDelete()}
           onClose={() => setConfirming(false)}
