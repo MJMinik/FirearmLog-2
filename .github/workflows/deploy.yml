@@ -12,6 +12,9 @@ permissions:
   pages: write
   id-token: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -38,8 +41,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Configure Pages
+      - name: Configure Pages (enables Pages automatically on first run)
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
