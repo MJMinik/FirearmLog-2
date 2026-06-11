@@ -11,4 +11,5 @@ export type View =
   | { kind: 'references' }
   | { kind: 'reference-detail'; id: string }
   | { kind: 'maintenance' }
-  | { kind: 'maint-form'; gunId: string };
+  | { kind: 'maint-form'; gunId: string }
+  | { kind: 'reference-form'; id?: string; copyFrom?: string };

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Firearm, MaintenanceEntry, Match, Media, Session } from '../lib/types.ts';
+import type { Firearm, MaintenanceEntry, Match, Media, Reference, Session } from '../lib/types.ts';
 import { getAll, getOne, putOne } from '../lib/db.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
 import { roundsForFirearm } from '../lib/stats.ts';
 import { maintLabel, maintenanceStatus } from '../lib/maintenance.ts';
-import { getReference, referencesForCategory } from '../lib/referenceData.ts';
+import { buildRefLookup, referencesForCategory, toEntry } from '../lib/referenceData.ts';
 import { formatDayKey } from '../lib/dates.ts';
 import { mediaUrl } from './media.ts';
 import { PhotoSheet } from './PhotoSheet.tsx';
@@ -21,6 +21,7 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
   const [stats, setStats] = useState({ rounds: 0, sessions: 0 });
   const [maintItems, setMaintItems] = useState<ReturnType<typeof maintenanceStatus>>([]);
   const [history, setHistory] = useState<MaintenanceEntry[]>([]);
+  const [customRefs, setCustomRefs] = useState<Reference[]>([]);
   const [viewing, setViewing] = useState<Media | null>(null);
   const [pickingRef, setPickingRef] = useState(false);
   const [localBump, setLocalBump] = useState(0);
@@ -29,13 +30,14 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [g, firearms, sessions, matches, media, maintenance] = await Promise.all([
+      const [g, firearms, sessions, matches, media, maintenance, refs] = await Promise.all([
         getOne<Firearm>('firearms', id),
         getAll<Firearm>('firearms'),
         getAll<Session>('sessions'),
         getAll<Match>('matches'),
         getAll<Media>('media'),
-        getAll<MaintenanceEntry>('maintenance')
+        getAll<MaintenanceEntry>('maintenance'),
+        getAll<Reference>('references')
       ]);
       if (!alive || !g) return;
       setGun(g);
@@ -44,14 +46,16 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
         rounds: roundsForFirearm(id, firearms, sessions, matches),
         sessions: sessions.filter((s) => !s.planned && s.guns.some((x) => x.firearmId === id)).length
       });
-      setMaintItems(maintenanceStatus(g, getReference(g.referenceId), sessions, maintenance, firearms, new Date()));
+      setCustomRefs(refs);
+      setMaintItems(maintenanceStatus(g, buildRefLookup(refs)(g.referenceId), sessions, maintenance, firearms, new Date()));
       setHistory(maintenance.filter((m) => m.firearmId === id).sort((a, b) => b.date.localeCompare(a.date)));
     })();
     return () => { alive = false; };
   }, [id, refreshKey, localBump]);
 
   if (!gun) return <div className="screen" />;
-  const linkedRef = getReference(gun.referenceId);
+  const linkedRef = buildRefLookup(customRefs)(gun.referenceId);
+  const customForCategory = customRefs.filter((r) => r.category === gun.category).map(toEntry);
 
   async function addPhotos(list: FileList | null) {
     if (!list || !gun) return;
@@ -194,14 +198,14 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
           <p className="report-note" style={{ marginBottom: 8 }}>
             Guides for {gun.category.toLowerCase()}s:
           </p>
-          {referencesForCategory(gun.category).map((r) => (
+          {[...customForCategory, ...referencesForCategory(gun.category)].map((r) => (
             <button key={r.id} className="drill-pick-row" onClick={() => void linkReference(r.id)}>
-              <strong>{r.name}</strong>
+              <strong>{r.name}{r.id.startsWith('refx') ? ' (yours)' : ''}</strong>
               <span>Deep clean every {r.maintenance.deepCleanRounds.toLocaleString()} rounds{r.maintenance.recoilSpringRounds ? ` · spring every ${r.maintenance.recoilSpringRounds.toLocaleString()}` : ''}</span>
             </button>
           ))}
-          {referencesForCategory(gun.category).length === 0 && (
-            <p className="report-note">No guides for this gun type yet.</p>
+          {customForCategory.length + referencesForCategory(gun.category).length === 0 && (
+            <p className="report-note">No guides for this gun type yet — create one under More → Reference.</p>
           )}
           {gun.referenceId && (
             <button className="drill-pick-row" onClick={() => void linkReference(null)}>

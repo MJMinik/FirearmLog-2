@@ -1,12 +1,12 @@
 // Maintenance: the all-guns overview (More → Maintenance) and the log form.
 import { useEffect, useState } from 'react';
-import type { Firearm, MaintenanceEntry, Session } from '../lib/types.ts';
+import type { Firearm, MaintenanceEntry, Reference, Session } from '../lib/types.ts';
 import { getAll, getOne, putOne } from '../lib/db.ts';
 import { todayKey } from '../lib/dates.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew } from '../lib/stamps.ts';
 import { MAINT_TYPES, maintLabel, maintenanceStatus } from '../lib/maintenance.ts';
-import { getReference } from '../lib/referenceData.ts';
+import { buildRefLookup } from '../lib/referenceData.ts';
 
 export function MaintenanceOverview({ refreshKey, onBack, openGun, logFor }: {
   refreshKey: number; onBack: () => void;
@@ -15,17 +15,20 @@ export function MaintenanceOverview({ refreshKey, onBack, openGun, logFor }: {
   const [firearms, setFirearms] = useState<Firearm[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceEntry[]>([]);
+  const [references, setReferences] = useState<Reference[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let alive = true;
     void Promise.all([
-      getAll<Firearm>('firearms'), getAll<Session>('sessions'), getAll<MaintenanceEntry>('maintenance')
-    ]).then(([f, s, m]) => {
+      getAll<Firearm>('firearms'), getAll<Session>('sessions'),
+      getAll<MaintenanceEntry>('maintenance'), getAll<Reference>('references')
+    ]).then(([f, s, m, r]) => {
       if (!alive) return;
       setFirearms(f.sort((a, b) => a.name.localeCompare(b.name)));
       setSessions(s);
       setMaintenance(m);
+      setReferences(r);
       setLoaded(true);
     });
     return () => { alive = false; };
@@ -33,6 +36,7 @@ export function MaintenanceOverview({ refreshKey, onBack, openGun, logFor }: {
 
   if (!loaded) return <div className="screen" />;
   const now = new Date();
+  const lookup = buildRefLookup(references);
 
   return (
     <div className="screen">
@@ -42,7 +46,7 @@ export function MaintenanceOverview({ refreshKey, onBack, openGun, logFor }: {
       </div>
       <h1 className="large-title">Maintenance</h1>
       {firearms.map((gun) => {
-        const items = maintenanceStatus(gun, getReference(gun.referenceId), sessions, maintenance, firearms, now);
+        const items = maintenanceStatus(gun, lookup(gun.referenceId), sessions, maintenance, firearms, now);
         return (
           <div className="card" key={gun.id}>
             <h2>{gun.name}</h2>

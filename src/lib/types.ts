@@ -168,10 +168,15 @@ export interface Classifier extends BaseRecord, Imported {
   [key: string]: unknown; // formalized in M5
 }
 
+/** A user-made care guide (built-in guides live in code, not here). */
 export interface Reference extends BaseRecord {
-  manufacturer: string;
-  categories: GunCategory[];
-  body: string;
+  name: string;
+  category: GunCategory;
+  deepCleanRounds: number;
+  recoilSpringRounds: number | null;
+  checklist: string[];
+  guidance: string;
+  links: { label: string; url: string }[];
 }
 
 /** Every image/video has a name and annotations — spec §5.15, req. 29. */

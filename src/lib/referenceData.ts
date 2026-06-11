@@ -3,7 +3,7 @@
 // Intervals are widely used starting points, NOT gospel — the owner's manual
 // always wins, and every gun can be customized on its own page.
 
-import type { GunCategory } from './types.ts';
+import type { GunCategory, Reference } from './types.ts';
 
 export interface ReferenceEntry {
   id: string;
@@ -239,4 +239,35 @@ export function getReference(id: string | null): ReferenceEntry | undefined {
 
 export function referencesForCategory(category: GunCategory): ReferenceEntry[] {
   return REFERENCES.filter((r) => r.category === category);
+}
+
+/** A user-made guide, dressed in the same shape as the built-ins. */
+export function toEntry(r: Reference): ReferenceEntry {
+  return {
+    id: r.id, name: r.name, category: r.category,
+    maintenance: {
+      deepCleanRounds: r.deepCleanRounds,
+      recoilSpringRounds: r.recoilSpringRounds ?? undefined,
+      note: 'Your own guide.'
+    },
+    checklist: r.checklist,
+    guidance: r.guidance,
+    links: r.links
+  };
+}
+
+export function isCustomRefId(id: string | null): boolean {
+  return !!id && id.startsWith('refx');
+}
+
+/** One lookup over built-ins AND the user's own guides. */
+export function buildRefLookup(custom: Reference[]): (id: string | null) => ReferenceEntry | undefined {
+  return (id) => {
+    if (!id) return undefined;
+    if (isCustomRefId(id)) {
+      const r = custom.find((c) => c.id === id);
+      return r ? toEntry(r) : undefined;
+    }
+    return getReference(id);
+  };
 }

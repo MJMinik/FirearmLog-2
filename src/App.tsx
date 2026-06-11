@@ -11,7 +11,7 @@ import { SessionDetail } from './ui/SessionDetail.tsx';
 import { SessionForm } from './ui/SessionForm.tsx';
 import { DrillsScreen, DrillForm } from './ui/DrillsScreen.tsx';
 import { MagazinesScreen, MagazineForm } from './ui/MagazinesScreen.tsx';
-import { ReferenceList, ReferenceDetail } from './ui/ReferenceScreens.tsx';
+import { ReferenceList, ReferenceDetail, ReferenceForm } from './ui/ReferenceScreens.tsx';
 import { MaintenanceOverview, MaintenanceForm } from './ui/MaintenanceScreens.tsx';
 
 export function App() {
@@ -65,12 +65,22 @@ export function App() {
       onCancel={() => setView({ kind: 'magazines' })}
       onSaved={() => { refresh(); setView({ kind: 'magazines' }); }} />;
   } else if (view?.kind === 'references') {
-    content = <ReferenceList
+    content = <ReferenceList refreshKey={refreshKey}
       onBack={() => setView(null)}
-      openDetail={(rid) => setView({ kind: 'reference-detail', id: rid })} />;
+      openDetail={(rid) => setView({ kind: 'reference-detail', id: rid })}
+      openForm={() => setView({ kind: 'reference-form' })} />;
   } else if (view?.kind === 'reference-detail') {
     const v = view;
-    content = <ReferenceDetail id={v.id} onBack={() => setView({ kind: 'references' })} />;
+    content = <ReferenceDetail id={v.id} refreshKey={refreshKey}
+      onBack={() => setView({ kind: 'references' })}
+      onEdit={() => setView({ kind: 'reference-form', id: v.id })}
+      onCopy={() => setView({ kind: 'reference-form', copyFrom: v.id })}
+      onDeleted={() => { refresh(); setView({ kind: 'references' }); }} />;
+  } else if (view?.kind === 'reference-form') {
+    const v = view;
+    content = <ReferenceForm id={v.id} copyFrom={v.copyFrom}
+      onCancel={() => setView(v.id !== undefined ? { kind: 'reference-detail', id: v.id } : { kind: 'references' })}
+      onSaved={(rid) => { refresh(); setView({ kind: 'reference-detail', id: rid }); }} />;
   } else if (view?.kind === 'maintenance') {
     content = <MaintenanceOverview refreshKey={refreshKey}
       onBack={() => setView(null)}

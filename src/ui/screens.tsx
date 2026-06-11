@@ -1,10 +1,10 @@
 // Tab screens. Home and Log are live against the database; Compete and
 // Progress arrive in M5 and M7 and say so in plain language.
 import { useEffect, useState } from 'react';
-import type { Firearm, MaintenanceEntry, Match, Session } from '../lib/types.ts';
+import type { Firearm, MaintenanceEntry, Match, Reference, Session } from '../lib/types.ts';
 import { getAll } from '../lib/db.ts';
 import { maintenanceAlerts } from '../lib/maintenance.ts';
-import { getReference } from '../lib/referenceData.ts';
+import { buildRefLookup } from '../lib/referenceData.ts';
 import { formatDayKey } from '../lib/dates.ts';
 import { sessionRounds, totalRounds } from '../lib/stats.ts';
 import { ImportFlow } from './ImportFlow.tsx';
@@ -16,24 +16,27 @@ function useData(refreshKey: number) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceEntry[]>([]);
+  const [references, setReferences] = useState<Reference[]>([]);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [f, s, m, mt] = await Promise.all([
+      const [f, s, m, mt, r] = await Promise.all([
         getAll<Firearm>('firearms'), getAll<Session>('sessions'),
-        getAll<Match>('matches'), getAll<MaintenanceEntry>('maintenance')
+        getAll<Match>('matches'), getAll<MaintenanceEntry>('maintenance'),
+        getAll<Reference>('references')
       ]);
       if (!alive) return;
       setFirearms(f);
       setSessions(s.sort((a, b) => b.date.localeCompare(a.date)));
       setMatches(m);
       setMaintenance(mt);
+      setReferences(r);
       setLoaded(true);
     })();
     return () => { alive = false; };
   }, [refreshKey]);
-  return { firearms, sessions, matches, maintenance, loaded };
+  return { firearms, sessions, matches, maintenance, references, loaded };
 }
 
 function SessionRow({ s, firearms, onTap }: { s: Session; firearms: Firearm[]; onTap: () => void }) {
@@ -54,11 +57,11 @@ function SessionRow({ s, firearms, onTap }: { s: Session; firearms: Firearm[]; o
 export function HomeScreen({ refreshKey, onImported, open }: {
   refreshKey: number; onImported: () => void; open: (v: View) => void;
 }) {
-  const { firearms, sessions, matches, maintenance, loaded } = useData(refreshKey);
+  const { firearms, sessions, matches, maintenance, references, loaded } = useData(refreshKey);
   if (!loaded) return <div className="screen" />;
 
   const empty = firearms.length === 0 && sessions.length === 0;
-  const alerts = maintenanceAlerts(firearms, getReference, sessions, maintenance, new Date());
+  const alerts = maintenanceAlerts(firearms, buildRefLookup(references), sessions, maintenance, new Date());
   return (
     <div className="screen">
       <h1 className="large-title">FirearmLog</h1>
