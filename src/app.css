@@ -296,3 +296,5 @@ select.category-pick {
 }
 .sync-steps li { margin-bottom: 4px; }
 a.button { text-decoration: none; }
+
+.badge.warn-badge { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }

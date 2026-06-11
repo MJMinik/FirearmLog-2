@@ -1,31 +1,41 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Firearm, Match, Media, Session } from '../lib/types.ts';
+import type { Firearm, MaintenanceEntry, Match, Media, Session } from '../lib/types.ts';
 import { getAll, getOne, putOne } from '../lib/db.ts';
 import { newId } from '../lib/id.ts';
-import { stampNew } from '../lib/stamps.ts';
+import { stampNew, stampUpdate } from '../lib/stamps.ts';
 import { roundsForFirearm } from '../lib/stats.ts';
+import { maintLabel, maintenanceStatus } from '../lib/maintenance.ts';
+import { getReference, referencesForCategory } from '../lib/referenceData.ts';
+import { formatDayKey } from '../lib/dates.ts';
 import { mediaUrl } from './media.ts';
 import { PhotoSheet } from './PhotoSheet.tsx';
+import { Sheet } from './Sheet.tsx';
 
-export function GunDetail({ id, onEdit, onBack, refreshKey }: {
-  id: string; onEdit: () => void; onBack: () => void; refreshKey: number;
+export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReference, refreshKey }: {
+  id: string; onEdit: () => void; onBack: () => void;
+  onLogMaintenance: () => void; onOpenReference: (refId: string) => void;
+  refreshKey: number;
 }) {
   const [gun, setGun] = useState<Firearm | null>(null);
   const [photos, setPhotos] = useState<Media[]>([]);
   const [stats, setStats] = useState({ rounds: 0, sessions: 0 });
+  const [maintItems, setMaintItems] = useState<ReturnType<typeof maintenanceStatus>>([]);
+  const [history, setHistory] = useState<MaintenanceEntry[]>([]);
   const [viewing, setViewing] = useState<Media | null>(null);
+  const [pickingRef, setPickingRef] = useState(false);
   const [localBump, setLocalBump] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [g, firearms, sessions, matches, media] = await Promise.all([
+      const [g, firearms, sessions, matches, media, maintenance] = await Promise.all([
         getOne<Firearm>('firearms', id),
         getAll<Firearm>('firearms'),
         getAll<Session>('sessions'),
         getAll<Match>('matches'),
-        getAll<Media>('media')
+        getAll<Media>('media'),
+        getAll<MaintenanceEntry>('maintenance')
       ]);
       if (!alive || !g) return;
       setGun(g);
@@ -34,11 +44,14 @@ export function GunDetail({ id, onEdit, onBack, refreshKey }: {
         rounds: roundsForFirearm(id, firearms, sessions, matches),
         sessions: sessions.filter((s) => !s.planned && s.guns.some((x) => x.firearmId === id)).length
       });
+      setMaintItems(maintenanceStatus(g, getReference(g.referenceId), sessions, maintenance, firearms, new Date()));
+      setHistory(maintenance.filter((m) => m.firearmId === id).sort((a, b) => b.date.localeCompare(a.date)));
     })();
     return () => { alive = false; };
   }, [id, refreshKey, localBump]);
 
   if (!gun) return <div className="screen" />;
+  const linkedRef = getReference(gun.referenceId);
 
   async function addPhotos(list: FileList | null) {
     if (!list || !gun) return;
@@ -57,6 +70,13 @@ export function GunDetail({ id, onEdit, onBack, refreshKey }: {
     setLocalBump((b) => b + 1);
   }
 
+  async function linkReference(refId: string | null) {
+    if (!gun) return;
+    await putOne('firearms', stampUpdate({ ...gun, referenceId: refId }, Date.now()));
+    setPickingRef(false);
+    setLocalBump((b) => b + 1);
+  }
+
   return (
     <div className="screen">
       <div className="navbar">
@@ -71,6 +91,62 @@ export function GunDetail({ id, onEdit, onBack, refreshKey }: {
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
+        <h2>Upkeep</h2>
+        {maintItems.map((it) => (
+          <div className="row" key={it.type}>
+            <span className="label">
+              {it.label}
+              <div className="row-sub">{it.detail}</div>
+            </span>
+            <span className={`badge ${it.level === 'due' ? 'bad' : it.level === 'warn' ? 'warn-badge' : 'ok'}`}>
+              {it.level === 'due' ? 'Due' : it.level === 'warn' ? 'Soon' : it.level === 'info' ? 'Note' : 'OK'}
+            </span>
+          </div>
+        ))}
+        <div style={{ marginTop: 10 }}>
+          <button className="button secondary" onClick={onLogMaintenance}>+ Log Work</button>
+        </div>
+        {history.length > 0 && (
+          <>
+            <h2 style={{ marginTop: 16 }}>Recent Work</h2>
+            {history.slice(0, 5).map((m) => (
+              <div className="row" key={m.id}>
+                <span className="label">
+                  {maintLabel(m.type)}
+                  {(m.partsReplaced || m.notes) && (
+                    <div className="row-sub">{[m.partsReplaced, m.notes].filter(Boolean).join(' · ')}</div>
+                  )}
+                </span>
+                <span className="value">{formatDayKey(m.date)}</span>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      <div className="card">
+        <h2>Reference</h2>
+        {linkedRef ? (
+          <p className="report-note" style={{ marginBottom: 10 }}>
+            Linked to <strong>{linkedRef.name}</strong> — its schedule fills in any blanks above.
+          </p>
+        ) : (
+          <p className="report-note" style={{ marginBottom: 10 }}>
+            No reference linked. Link the maker's guide and its care schedule becomes this gun's default.
+          </p>
+        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {linkedRef && (
+            <button className="button secondary" style={{ flex: 1 }}
+              onClick={() => onOpenReference(linkedRef.id)}>View Guide</button>
+          )}
+          <button className="button secondary" style={{ flex: 1 }} onClick={() => setPickingRef(true)}>
+            {linkedRef ? 'Change Link' : 'Link a Reference'}
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
         <h2>Details</h2>
         <div className="row"><span className="label">Made by</span><span className="value">{gun.manufacturer || '—'}</span></div>
         <div className="row"><span className="label">Model</span><span className="value">{gun.model || '—'}</span></div>
@@ -112,6 +188,28 @@ export function GunDetail({ id, onEdit, onBack, refreshKey }: {
       {viewing && (
         <PhotoSheet media={viewing} onClose={() => setViewing(null)}
           onChanged={() => setLocalBump((b) => b + 1)} />
+      )}
+      {pickingRef && (
+        <Sheet title="Link a Reference" onClose={() => setPickingRef(false)}>
+          <p className="report-note" style={{ marginBottom: 8 }}>
+            Guides for {gun.category.toLowerCase()}s:
+          </p>
+          {referencesForCategory(gun.category).map((r) => (
+            <button key={r.id} className="drill-pick-row" onClick={() => void linkReference(r.id)}>
+              <strong>{r.name}</strong>
+              <span>Deep clean every {r.maintenance.deepCleanRounds.toLocaleString()} rounds{r.maintenance.recoilSpringRounds ? ` · spring every ${r.maintenance.recoilSpringRounds.toLocaleString()}` : ''}</span>
+            </button>
+          ))}
+          {referencesForCategory(gun.category).length === 0 && (
+            <p className="report-note">No guides for this gun type yet.</p>
+          )}
+          {gun.referenceId && (
+            <button className="drill-pick-row" onClick={() => void linkReference(null)}>
+              <strong>Remove the link</strong>
+              <span>Go back to the standard schedule</span>
+            </button>
+          )}
+        </Sheet>
       )}
     </div>
   );

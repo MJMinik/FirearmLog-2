@@ -32,6 +32,7 @@ export interface Firearm extends BaseRecord, Imported {
   startingRoundCount: number;
   recoilSpringInterval?: number | null;
   recoilSpringWeight?: string | null;
+  deepCleanInterval?: number | null; // per-gun override; null = use Reference/default
   barrelName?: string | null;
   barrelInstallDate?: string | null;
   barrelStartRounds?: number | null;

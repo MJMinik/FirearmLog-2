@@ -11,6 +11,8 @@ import { SessionDetail } from './ui/SessionDetail.tsx';
 import { SessionForm } from './ui/SessionForm.tsx';
 import { DrillsScreen, DrillForm } from './ui/DrillsScreen.tsx';
 import { MagazinesScreen, MagazineForm } from './ui/MagazinesScreen.tsx';
+import { ReferenceList, ReferenceDetail } from './ui/ReferenceScreens.tsx';
+import { MaintenanceOverview, MaintenanceForm } from './ui/MaintenanceScreens.tsx';
 
 export function App() {
   const [tab, setTabState] = useState<TabId>('home');
@@ -25,7 +27,9 @@ export function App() {
     const v = view;
     content = <GunDetail id={v.id} refreshKey={refreshKey}
       onBack={() => setView(null)}
-      onEdit={() => setView({ kind: 'gun-form', id: v.id })} />;
+      onEdit={() => setView({ kind: 'gun-form', id: v.id })}
+      onLogMaintenance={() => setView({ kind: 'maint-form', gunId: v.id })}
+      onOpenReference={(rid) => setView({ kind: 'reference-detail', id: rid })} />;
   } else if (view?.kind === 'gun-form') {
     const v = view;
     content = <GunForm id={v.id}
@@ -60,6 +64,23 @@ export function App() {
     content = <MagazineForm id={v.id}
       onCancel={() => setView({ kind: 'magazines' })}
       onSaved={() => { refresh(); setView({ kind: 'magazines' }); }} />;
+  } else if (view?.kind === 'references') {
+    content = <ReferenceList
+      onBack={() => setView(null)}
+      openDetail={(rid) => setView({ kind: 'reference-detail', id: rid })} />;
+  } else if (view?.kind === 'reference-detail') {
+    const v = view;
+    content = <ReferenceDetail id={v.id} onBack={() => setView({ kind: 'references' })} />;
+  } else if (view?.kind === 'maintenance') {
+    content = <MaintenanceOverview refreshKey={refreshKey}
+      onBack={() => setView(null)}
+      openGun={(gid) => setView({ kind: 'gun-detail', id: gid })}
+      logFor={(gid) => setView({ kind: 'maint-form', gunId: gid })} />;
+  } else if (view?.kind === 'maint-form') {
+    const v = view;
+    content = <MaintenanceForm gunId={v.gunId}
+      onCancel={() => setView({ kind: 'gun-detail', id: v.gunId })}
+      onSaved={() => { refresh(); setView({ kind: 'gun-detail', id: v.gunId }); }} />;
   } else if (tab === 'home') {
     content = <HomeScreen refreshKey={refreshKey} onImported={refresh} open={setView} />;
   } else if (tab === 'log') {

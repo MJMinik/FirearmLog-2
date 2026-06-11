@@ -18,6 +18,8 @@ export function GunForm({ id, onSaved, onCancel }: {
   const [serial, setSerial] = useState('');
   const [acquired, setAcquired] = useState('');
   const [startCount, setStartCount] = useState('0');
+  const [deepClean, setDeepClean] = useState('');
+  const [recoilSpring, setRecoilSpring] = useState('');
   const [notes, setNotes] = useState('');
   const [problem, setProblem] = useState('');
 
@@ -30,6 +32,8 @@ export function GunForm({ id, onSaved, onCancel }: {
       setName(g.name); setManufacturer(g.manufacturer); setModel(g.model);
       setCaliber(g.caliber); setCategory(g.category); setSerial(g.serialNumber ?? '');
       setAcquired(g.dateAcquired); setStartCount(String(g.startingRoundCount));
+      setDeepClean(g.deepCleanInterval ? String(g.deepCleanInterval) : '');
+      setRecoilSpring(g.recoilSpringInterval ? String(g.recoilSpringInterval) : '');
       setNotes(g.notes);
     });
     return () => { alive = false; };
@@ -39,10 +43,16 @@ export function GunForm({ id, onSaved, onCancel }: {
     if (!name.trim()) { setProblem('Give the gun a name.'); return; }
     const start = Number(startCount);
     if (!Number.isFinite(start) || start < 0) { setProblem('Starting round count needs to be a number.'); return; }
+    const dcNum = deepClean.trim() === '' ? null : Number(deepClean);
+    const rsNum = recoilSpring.trim() === '' ? null : Number(recoilSpring);
+    if ((dcNum !== null && !(dcNum > 0)) || (rsNum !== null && !(rsNum > 0))) {
+      setProblem('Schedule intervals need to be plain round counts (or left blank).'); return;
+    }
     const fields = {
       name: name.trim(), manufacturer: manufacturer.trim(), model: model.trim(),
       caliber: caliber.trim(), category, serialNumber: serial.trim() || null,
-      dateAcquired: acquired, startingRoundCount: start, notes: notes.trim()
+      dateAcquired: acquired, startingRoundCount: start, notes: notes.trim(),
+      deepCleanInterval: dcNum, recoilSpringInterval: rsNum
     };
     if (editing && original) {
       const updated = stampUpdate({ ...original, ...fields }, Date.now());
@@ -51,7 +61,7 @@ export function GunForm({ id, onSaved, onCancel }: {
     } else {
       const created: Firearm = stampNew({
         ...fields,
-        recoilSpringInterval: null, recoilSpringWeight: null,
+        recoilSpringWeight: null,
         barrelName: null, barrelInstallDate: null, barrelStartRounds: null,
         photoIds: [], referenceId: null
       }, newId('fa'), Date.now());
@@ -95,6 +105,12 @@ export function GunForm({ id, onSaved, onCancel }: {
         </label>
         <label className="field">Starting round count
           <input type="number" inputMode="numeric" min="0" value={startCount} onChange={(e) => setStartCount(e.target.value)} />
+        </label>
+        <label className="field">Deep clean every … rounds (blank = use the linked Reference or 10,000)
+          <input type="number" inputMode="numeric" min="1" value={deepClean} onChange={(e) => setDeepClean(e.target.value)} />
+        </label>
+        <label className="field">Recoil spring every … rounds (blank = use the linked Reference)
+          <input type="number" inputMode="numeric" min="1" value={recoilSpring} onChange={(e) => setRecoilSpring(e.target.value)} />
         </label>
         <label className="field">Notes
           <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />

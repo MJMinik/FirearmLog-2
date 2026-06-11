@@ -1,8 +1,10 @@
 // Tab screens. Home and Log are live against the database; Compete and
 // Progress arrive in M5 and M7 and say so in plain language.
 import { useEffect, useState } from 'react';
-import type { Firearm, Match, Session } from '../lib/types.ts';
+import type { Firearm, MaintenanceEntry, Match, Session } from '../lib/types.ts';
 import { getAll } from '../lib/db.ts';
+import { maintenanceAlerts } from '../lib/maintenance.ts';
+import { getReference } from '../lib/referenceData.ts';
 import { formatDayKey } from '../lib/dates.ts';
 import { sessionRounds, totalRounds } from '../lib/stats.ts';
 import { ImportFlow } from './ImportFlow.tsx';
@@ -13,22 +15,25 @@ function useData(refreshKey: number) {
   const [firearms, setFirearms] = useState<Firearm[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [maintenance, setMaintenance] = useState<MaintenanceEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [f, s, m] = await Promise.all([
-        getAll<Firearm>('firearms'), getAll<Session>('sessions'), getAll<Match>('matches')
+      const [f, s, m, mt] = await Promise.all([
+        getAll<Firearm>('firearms'), getAll<Session>('sessions'),
+        getAll<Match>('matches'), getAll<MaintenanceEntry>('maintenance')
       ]);
       if (!alive) return;
       setFirearms(f);
       setSessions(s.sort((a, b) => b.date.localeCompare(a.date)));
       setMatches(m);
+      setMaintenance(mt);
       setLoaded(true);
     })();
     return () => { alive = false; };
   }, [refreshKey]);
-  return { firearms, sessions, matches, loaded };
+  return { firearms, sessions, matches, maintenance, loaded };
 }
 
 function SessionRow({ s, firearms, onTap }: { s: Session; firearms: Firearm[]; onTap: () => void }) {
@@ -49,10 +54,11 @@ function SessionRow({ s, firearms, onTap }: { s: Session; firearms: Firearm[]; o
 export function HomeScreen({ refreshKey, onImported, open }: {
   refreshKey: number; onImported: () => void; open: (v: View) => void;
 }) {
-  const { firearms, sessions, matches, loaded } = useData(refreshKey);
+  const { firearms, sessions, matches, maintenance, loaded } = useData(refreshKey);
   if (!loaded) return <div className="screen" />;
 
   const empty = firearms.length === 0 && sessions.length === 0;
+  const alerts = maintenanceAlerts(firearms, getReference, sessions, maintenance, new Date());
   return (
     <div className="screen">
       <h1 className="large-title">FirearmLog</h1>
@@ -78,7 +84,24 @@ export function HomeScreen({ refreshKey, onImported, open }: {
               <div className="cap">Lifetime rounds</div>
             </div>
           </div>
-          <div className="card" style={{ marginTop: 16 }}>
+          {alerts.length > 0 && (
+            <div className="card" style={{ marginTop: 16 }}>
+              <h2>Needs Attention</h2>
+              {alerts.map((a, i) => (
+                <button className="row-tap" key={i}
+                  onClick={() => open({ kind: 'gun-detail', id: a.firearmId })}>
+                  <span className="label">
+                    {a.gunName}: {a.item.label.toLowerCase()}
+                    <div className="row-sub">{a.item.detail}</div>
+                  </span>
+                  <span className={`badge ${a.item.level === 'due' ? 'bad' : 'warn-badge'}`}>
+                    {a.item.level === 'due' ? 'Due' : 'Soon'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="card" style={{ marginTop: alerts.length > 0 ? 0 : 16 }}>
             <h2>Recent Sessions</h2>
             {sessions.slice(0, 5).map((s) => (
               <SessionRow key={s.id} s={s} firearms={firearms}
@@ -159,6 +182,14 @@ export function MoreScreen({ refreshKey, onImported, open }: {
         </button>
         <button className="row-tap" onClick={() => open({ kind: 'magazines' })}>
           <span className="label">Magazines</span>
+          <span className="value">›</span>
+        </button>
+        <button className="row-tap" onClick={() => open({ kind: 'maintenance' })}>
+          <span className="label">Maintenance</span>
+          <span className="value">›</span>
+        </button>
+        <button className="row-tap" onClick={() => open({ kind: 'references' })}>
+          <span className="label">Reference</span>
           <span className="value">›</span>
         </button>
       </div>

@@ -200,6 +200,7 @@ export function importPistolTracker(
       startingRoundCount: num(f.startingRoundCount),
       recoilSpringInterval: numOrNull(f.recoilSpringInterval),
       recoilSpringWeight: typeof f.recoilSpringWeight === 'string' ? f.recoilSpringWeight : null,
+      deepCleanInterval: numOrNull(f.deepCleanInterval),
       barrelName: typeof f.barrelName === 'string' ? f.barrelName : null,
       barrelInstallDate: typeof f.barrelInstallDate === 'string' ? f.barrelInstallDate : null,
       barrelStartRounds: numOrNull(f.barrelStartRounds),

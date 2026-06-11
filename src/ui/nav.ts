@@ -7,4 +7,8 @@ export type View =
   | { kind: 'drills' }
   | { kind: 'drill-form'; id?: string }
   | { kind: 'magazines' }
-  | { kind: 'magazine-form'; id?: string };
+  | { kind: 'magazine-form'; id?: string }
+  | { kind: 'references' }
+  | { kind: 'reference-detail'; id: string }
+  | { kind: 'maintenance' }
+  | { kind: 'maint-form'; gunId: string };
