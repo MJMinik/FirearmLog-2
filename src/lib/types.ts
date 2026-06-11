@@ -160,12 +160,41 @@ export interface SkillAssessment extends BaseRecord, Imported {
   [key: string]: unknown;
 }
 
+export interface MatchStage {
+  number: number;
+  points: number | null;
+  time: number | null;
+  percent: number | null;
+  notes: string;
+}
+
 export interface Match extends BaseRecord, Imported {
-  [key: string]: unknown; // formalized in M5
+  date: string;
+  name: string;
+  matchType: string;
+  division: string;
+  powerFactor: string;
+  firearmId: string;
+  totalRounds: number | null;
+  overallPlace: number | null;
+  overallOf: number | null;
+  divisionPlace: number | null;
+  divisionOf: number | null;
+  matchPercent: number | null;
+  stages: MatchStage[];
+  entryFee: number | null; // first-class cost source (spec §12.2)
+  practiScoreUrl: string;
+  notes: string;
 }
 
 export interface Classifier extends BaseRecord, Imported {
-  [key: string]: unknown; // formalized in M5
+  date: string;
+  code: string;
+  name: string;
+  division: string;
+  hitFactor: number | null;
+  percent: number | null;
+  notes: string;
 }
 
 /** A user-made care guide (built-in guides live in code, not here). */

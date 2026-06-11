@@ -12,4 +12,7 @@ export type View =
   | { kind: 'reference-detail'; id: string }
   | { kind: 'maintenance' }
   | { kind: 'maint-form'; gunId: string }
-  | { kind: 'reference-form'; id?: string; copyFrom?: string };
+  | { kind: 'reference-form'; id?: string; copyFrom?: string }
+  | { kind: 'match-detail'; id: string }
+  | { kind: 'match-form'; id?: string }
+  | { kind: 'classifier-form'; id?: string };

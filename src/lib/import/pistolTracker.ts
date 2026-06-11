@@ -352,8 +352,8 @@ export function importPistolTracker(
 
   const goals = carry(old.goals, 'go') as Goal[];
   const skills = carry(old.skillAssessments, 'sk') as SkillAssessment[];
-  const matches = carry(old.matches, 'mt') as Match[];
-  const classifiers = carry(old.classifiers, 'cl') as Classifier[];
+  const matches = carry(old.matches, 'mt') as unknown as Match[];
+  const classifiers = carry(old.classifiers, 'cl') as unknown as Classifier[];
 
   const trash: TrashItem[] = (old.trash ?? []).map(t => stamp({
     recordType: str(t.type) || 'unknown',

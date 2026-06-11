@@ -9,6 +9,8 @@ import { formatDayKey } from '../lib/dates.ts';
 import { sessionRounds, totalRounds } from '../lib/stats.ts';
 import { ImportFlow } from './ImportFlow.tsx';
 import { SyncCard } from './SyncCard.tsx';
+import { MonthCalendar } from './Calendar.tsx';
+import type { CalItem } from './Calendar.tsx';
 import type { View } from './nav.ts';
 
 function useData(refreshKey: number) {
@@ -118,16 +120,44 @@ export function HomeScreen({ refreshKey, onImported, open }: {
 }
 
 export function LogScreen({ refreshKey, open }: { refreshKey: number; open: (v: View) => void }) {
-  const { firearms, sessions, loaded } = useData(refreshKey);
+  const { firearms, sessions, matches, loaded } = useData(refreshKey);
+  const [mode, setMode] = useState<'list' | 'calendar'>('list');
   if (!loaded) return <div className="screen" />;
+
+  const calItems = new Map<string, CalItem[]>();
+  for (const s of sessions) {
+    if (!s.date) continue;
+    const names = s.guns.map((g) => firearms.find((f) => f.id === g.firearmId)?.name ?? '—').join(', ');
+    const list = calItems.get(s.date) ?? [];
+    list.push({ kind: 'session', id: s.id, label: `Session — ${names}`, sub: `${sessionRounds(s).toLocaleString()} rounds` });
+    calItems.set(s.date, list);
+  }
+  for (const m of matches) {
+    if (!m.date) continue;
+    const list = calItems.get(m.date) ?? [];
+    list.push({ kind: 'match', id: m.id, label: m.name || 'Match', sub: `${m.matchType ?? 'Match'} · ${m.division ?? ''}` });
+    calItems.set(m.date, list);
+  }
+
   return (
     <div className="screen">
       <h1 className="large-title">Log</h1>
       <button className="button" onClick={() => open({ kind: 'session-form' })}>+ Log Session</button>
-      {sessions.length === 0 ? (
+      <div className="seg" role="radiogroup" aria-label="View" style={{ marginTop: 12 }}>
+        <button role="radio" aria-checked={mode === 'list'} className={mode === 'list' ? 'on' : ''}
+          onClick={() => setMode('list')}>List</button>
+        <button role="radio" aria-checked={mode === 'calendar'} className={mode === 'calendar' ? 'on' : ''}
+          onClick={() => setMode('calendar')}>Calendar</button>
+      </div>
+      {mode === 'calendar' ? (
+        <MonthCalendar items={calItems}
+          onOpen={(it) => open(it.kind === 'session'
+            ? { kind: 'session-detail', id: it.id }
+            : { kind: 'match-detail', id: it.id })} />
+      ) : sessions.length === 0 ? (
         <p className="empty">Nothing logged yet. Tap "Log Session" after your next range trip, or import your Pistol Tracker data from the Home screen.</p>
       ) : (
-        <div className="card" style={{ marginTop: 16 }}>
+        <div className="card">
           <h2>All Sessions</h2>
           {sessions.map((s) => (
             <SessionRow key={s.id} s={s} firearms={firearms}
@@ -135,15 +165,6 @@ export function LogScreen({ refreshKey, open }: { refreshKey: number; open: (v: 
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-export function CompeteScreen() {
-  return (
-    <div className="screen">
-      <h1 className="large-title">Compete</h1>
-      <p className="empty">Match logging, classifiers, and your road from C to B land here in a later build.</p>
     </div>
   );
 }

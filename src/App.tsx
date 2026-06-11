@@ -3,8 +3,10 @@ import { TabBar } from './ui/TabBar.tsx';
 import type { TabId } from './ui/TabBar.tsx';
 import type { View } from './ui/nav.ts';
 import {
-  HomeScreen, LogScreen, CompeteScreen, ProgressScreen, MoreScreen
+  HomeScreen, LogScreen, ProgressScreen, MoreScreen
 } from './ui/screens.tsx';
+import { CompeteScreen, ClassifierForm } from './ui/CompeteScreen.tsx';
+import { MatchDetail, MatchForm } from './ui/MatchScreens.tsx';
 import { GunDetail } from './ui/GunDetail.tsx';
 import { GunForm } from './ui/GunForm.tsx';
 import { SessionDetail } from './ui/SessionDetail.tsx';
@@ -91,12 +93,28 @@ export function App() {
     content = <MaintenanceForm gunId={v.gunId}
       onCancel={() => setView({ kind: 'gun-detail', id: v.gunId })}
       onSaved={() => { refresh(); setView({ kind: 'gun-detail', id: v.gunId }); }} />;
+  } else if (view?.kind === 'match-detail') {
+    const v = view;
+    content = <MatchDetail id={v.id} refreshKey={refreshKey}
+      onBack={() => setView(null)}
+      onEdit={() => setView({ kind: 'match-form', id: v.id })}
+      onDeleted={() => { refresh(); setView(null); }} />;
+  } else if (view?.kind === 'match-form') {
+    const v = view;
+    content = <MatchForm id={v.id}
+      onCancel={() => setView(v.id !== undefined ? { kind: 'match-detail', id: v.id } : null)}
+      onSaved={(mid) => { refresh(); setView({ kind: 'match-detail', id: mid }); }} />;
+  } else if (view?.kind === 'classifier-form') {
+    const v = view;
+    content = <ClassifierForm id={v.id}
+      onCancel={() => setView(null)}
+      onSaved={() => { refresh(); setView(null); }} />;
   } else if (tab === 'home') {
     content = <HomeScreen refreshKey={refreshKey} onImported={refresh} open={setView} />;
   } else if (tab === 'log') {
     content = <LogScreen refreshKey={refreshKey} open={setView} />;
   } else if (tab === 'compete') {
-    content = <CompeteScreen />;
+    content = <CompeteScreen refreshKey={refreshKey} open={setView} />;
   } else if (tab === 'progress') {
     content = <ProgressScreen />;
   } else {
