@@ -253,3 +253,17 @@ select.category-pick {
 .row-tap:last-child { border-bottom: none; }
 .row-tap .value { color: var(--text-dim); text-align: right; flex-shrink: 0; }
 .row-sub { font-size: 13px; color: var(--text-dim); font-weight: 400; }
+
+/* ---------- M2 slice 2: photo viewer + staged thumbnails ---------- */
+.photo-full {
+  width: 100%; max-height: 45dvh; object-fit: contain;
+  border-radius: 12px; background: var(--bg); margin-bottom: 12px;
+}
+.photo-grid video { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; }
+.photo-grid button.thumb-tap { padding: 0; border: none; background: none; cursor: pointer; }
+.thumb-wrap { position: relative; }
+.thumb-x {
+  position: absolute; top: 4px; right: 4px; width: 28px; height: 28px;
+  border-radius: 50%; border: none; background: rgba(0, 0, 0, 0.65); color: #fff;
+  font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}

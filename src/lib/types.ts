@@ -110,6 +110,15 @@ export interface MaintenanceEntry extends BaseRecord, Imported {
   notes: string;
 }
 
+export interface MalfunctionEntry extends BaseRecord, Imported {
+  sessionId: string | null;
+  date: string;
+  firearmId: string;
+  type: string;       // plain language, e.g. "Failure to feed"
+  resolution: string; // what cleared it
+  notes: string;
+}
+
 export interface Magazine extends BaseRecord, Imported {
   label: string;
   firearmIds: string[];

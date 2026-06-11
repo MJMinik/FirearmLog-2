@@ -1,14 +1,17 @@
 // Log or edit a session (spec §8.1): kind, date, guns with per-gun rounds,
-// multiple drills picked through the context-aware picker, ratings, fee, notes.
-// Editing preserves everything it doesn't touch (photos, malfunctions, legacy).
-import { useEffect, useMemo, useState } from 'react';
-import type { DrillDef, DrillResult, Firearm, GunCategory, Session } from '../lib/types.ts';
-import { getAll, getOne, putOne } from '../lib/db.ts';
+// multiple drills via the context-aware picker, photos/videos, malfunctions,
+// ratings, fee, notes. Removals are STAGED — cancel really cancels (rule F3).
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  DrillDef, DrillResult, Firearm, GunCategory, MalfunctionEntry, Media, Session
+} from '../lib/types.ts';
+import { deleteOne, getAll, getOne, putOne } from '../lib/db.ts';
 import { todayKey } from '../lib/dates.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
 import { drillsForContext } from '../lib/drillFilter.ts';
 import { Sheet } from './Sheet.tsx';
+import { mediaUrl } from './media.ts';
 
 const KINDS = [
   { value: 'practice', label: 'Live practice' },
@@ -16,9 +19,16 @@ const KINDS = [
   { value: 'class', label: 'Class' }
 ];
 
+const MALF_TYPES = [
+  'Failure to feed', 'Failure to fire', 'Failure to eject', 'Failure to extract',
+  'Double feed', 'Stovepipe', 'Light strike', 'Other'
+];
+
 interface DrillRow {
   name: string; distance: string; time: string; score: string; maxScore: string; notes: string;
 }
+interface MalfRow { firearmId: string; type: string; resolution: string; notes: string; }
+interface NewFile { file: File; url: string; kind: 'image' | 'video'; }
 
 const toRow = (d: DrillResult): DrillRow => ({
   name: d.name, distance: d.distance,
@@ -47,13 +57,20 @@ export function SessionForm({ id, onSaved, onCancel }: {
   const [kind, setKind] = useState('practice');
   const [date, setDate] = useState(todayKey());
   const [location, setLocation] = useState('');
-  const [rounds, setRounds] = useState<Record<string, string>>({}); // firearmId -> rounds text ('' = not on session)
+  const [rounds, setRounds] = useState<Record<string, string>>({});
   const [drills, setDrills] = useState<DrillRow[]>([]);
+  const [malfs, setMalfs] = useState<MalfRow[]>([]);
+  const [oldMalfIds, setOldMalfIds] = useState<string[]>([]);
+  const [existingMedia, setExistingMedia] = useState<Media[]>([]);
+  const [removedMedia, setRemovedMedia] = useState<string[]>([]);
+  const [newFiles, setNewFiles] = useState<NewFile[]>([]);
   const [ratings, setRatings] = useState<Record<string, string>>({ focus: '', fundamentals: '', satisfaction: '' });
   const [rangeFee, setRangeFee] = useState('');
   const [notes, setNotes] = useState('');
   const [picking, setPicking] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -63,7 +80,11 @@ export function SessionForm({ id, onSaved, onCancel }: {
       setFirearms(f.sort((a, b) => a.name.localeCompare(b.name)));
       setDrillLib(dl);
       if (id !== undefined) {
-        const s = await getOne<Session>('sessions', id);
+        const [s, allMedia, allMalfs] = await Promise.all([
+          getOne<Session>('sessions', id),
+          getAll<Media>('media'),
+          getAll<MalfunctionEntry>('malfunctions')
+        ]);
         if (!alive || !s) return;
         setOriginal(s);
         setKind(s.type); setDate(s.date); setLocation(s.location);
@@ -71,6 +92,12 @@ export function SessionForm({ id, onSaved, onCancel }: {
         for (const g of s.guns) r[g.firearmId] = String(g.rounds);
         setRounds(r);
         setDrills(s.drills.map(toRow));
+        setExistingMedia(allMedia.filter((m) => m.ownerType === 'session' && m.ownerId === id));
+        const mine = allMalfs.filter((m) => m.sessionId === id);
+        setOldMalfIds(mine.map((m) => m.id));
+        setMalfs(mine.map((m) => ({
+          firearmId: m.firearmId, type: m.type, resolution: m.resolution, notes: m.notes
+        })));
         setRatings({
           focus: s.selfRating?.focus !== undefined ? String(s.selfRating.focus) : '',
           fundamentals: s.selfRating?.fundamentals !== undefined ? String(s.selfRating.fundamentals) : '',
@@ -83,13 +110,15 @@ export function SessionForm({ id, onSaved, onCancel }: {
     return () => { alive = false; };
   }, [editing, id]);
 
+  const selectedGuns = useMemo(
+    () => firearms.filter((f) => rounds[f.id] !== undefined),
+    [firearms, rounds]
+  );
   const selectedCategories = useMemo(() => {
     const cats = new Set<GunCategory>();
-    for (const f of firearms) {
-      if (rounds[f.id] !== undefined) cats.add(f.category);
-    }
+    for (const f of selectedGuns) cats.add(f.category);
     return [...cats];
-  }, [firearms, rounds]);
+  }, [selectedGuns]);
 
   const pickable = useMemo(
     () => drillsForContext(drillLib, selectedCategories, kind),
@@ -105,7 +134,21 @@ export function SessionForm({ id, onSaved, onCancel }: {
     });
   }
 
+  function filesPicked(list: FileList | null) {
+    if (!list) return;
+    const added: NewFile[] = [];
+    for (const file of Array.from(list)) {
+      added.push({
+        file,
+        url: URL.createObjectURL(file),
+        kind: file.type.startsWith('video') ? 'video' : 'image'
+      });
+    }
+    setNewFiles((prev) => [...prev, ...added]);
+  }
+
   async function save() {
+    if (saving) return;
     const guns = Object.entries(rounds).map(([firearmId, text]) => ({
       firearmId, rounds: text.trim() === '' ? 0 : Number(text)
     }));
@@ -127,29 +170,61 @@ export function SessionForm({ id, onSaved, onCancel }: {
     const fee = rangeFee.trim() === '' ? null : Number(rangeFee);
     if (fee !== null && !Number.isFinite(fee)) { setProblem('Range fee needs to be a number.'); return; }
 
-    const fields = {
-      date, type: kind, guns, location: location.trim(), notes: notes.trim(),
-      drills: drills.map(fromRow), selfRating, rangeFee: fee
-    };
-    if (editing && original) {
-      const updated = stampUpdate({ ...original, ...fields }, Date.now());
-      await putOne('sessions', updated);
-      onSaved(updated.id);
-    } else {
-      const created: Session = stampNew({
-        ...fields, distances: '', ammoUsage: [], targetMediaIds: [],
-        malfunctions: [], planned: false, checklist: null
-      }, newId('se'), Date.now());
-      await putOne('sessions', created);
-      onSaved(created.id);
+    setSaving(true);
+    try {
+      const sid = original ? original.id : newId('se');
+      const now = Date.now();
+      const fields = {
+        date, type: kind, guns, location: location.trim(), notes: notes.trim(),
+        drills: drills.map(fromRow), selfRating, rangeFee: fee
+      };
+      if (original) {
+        await putOne('sessions', stampUpdate({ ...original, ...fields }, now));
+      } else {
+        await putOne('sessions', stampNew({
+          ...fields, distances: '', ammoUsage: [], targetMediaIds: [],
+          malfunctions: [], planned: false, checklist: null
+        }, sid, now));
+      }
+
+      // Staged photo/video changes commit only now (rule F3).
+      for (const mid of removedMedia) await deleteOne('media', mid);
+      let seq = existingMedia.length;
+      for (const nf of newFiles) {
+        seq += 1;
+        const buf = await nf.file.arrayBuffer();
+        await putOne('media', stampNew({
+          ownerType: 'session' as const, ownerId: sid,
+          kind: nf.kind, name: `${nf.kind === 'video' ? 'Video' : 'Photo'} ${seq} — ${date}`,
+          annotations: [], mime: nf.file.type || 'application/octet-stream', data: buf
+        }, newId('md'), now));
+      }
+
+      // Malfunctions: rewrite this session's set.
+      for (const mid of oldMalfIds) await deleteOne('malfunctions', mid);
+      for (const m of malfs) {
+        if (!m.type) continue;
+        await putOne('malfunctions', stampNew({
+          sessionId: sid, date, firearmId: m.firearmId,
+          type: m.type, resolution: m.resolution.trim(), notes: m.notes.trim()
+        }, newId('mf'), now));
+      }
+
+      onSaved(sid);
+    } finally {
+      setSaving(false);
     }
   }
+
+  const visibleExisting = existingMedia.filter((m) => !removedMedia.includes(m.id));
 
   return (
     <div className="screen">
       <div className="navbar">
         <button className="back-btn" onClick={onCancel}>‹ Cancel</button>
-        <button className="navbar-action" onClick={() => void save()}>Save</button>
+        <button className="navbar-action" disabled={saving} onClick={() => void save()}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
       </div>
       <h1 className="large-title">{editing ? 'Edit Session' : 'Log Session'}</h1>
       {problem && <p className="form-problem">{problem}</p>}
@@ -231,6 +306,75 @@ export function SessionForm({ id, onSaved, onCancel }: {
       </div>
 
       <div className="card">
+        <h2>Targets, Photos &amp; Videos</h2>
+        {(visibleExisting.length > 0 || newFiles.length > 0) && (
+          <div className="photo-grid" style={{ marginBottom: 12 }}>
+            {visibleExisting.map((m) => (
+              <div className="thumb-wrap" key={m.id}>
+                {m.kind === 'video'
+                  ? <video src={mediaUrl(m)} preload="metadata" muted playsInline />
+                  : <img src={mediaUrl(m)} alt={m.name} loading="lazy" />}
+                <button className="thumb-x" aria-label={`Remove ${m.name}`}
+                  onClick={() => setRemovedMedia((prev) => [...prev, m.id])}>✕</button>
+              </div>
+            ))}
+            {newFiles.map((nf, i) => (
+              <div className="thumb-wrap" key={nf.url}>
+                {nf.kind === 'video'
+                  ? <video src={nf.url} preload="metadata" muted playsInline />
+                  : <img src={nf.url} alt="New photo" />}
+                <button className="thumb-x" aria-label="Remove new file"
+                  onClick={() => setNewFiles((prev) => prev.filter((_, x) => x !== i))}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <input ref={fileRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }}
+          onChange={(e) => { filesPicked(e.target.files); e.target.value = ''; }} />
+        <button className="button secondary" onClick={() => fileRef.current?.click()}>+ Add Photos or Videos</button>
+        <p className="report-note">Removals only happen when you Save — Cancel really cancels.</p>
+      </div>
+
+      <div className="card">
+        <h2>Malfunctions</h2>
+        {malfs.map((m, i) => (
+          <div className="drill-edit" key={i}>
+            <div className="drill-edit-head">
+              <strong>{m.type || 'New malfunction'}</strong>
+              <button className="icon-btn" aria-label="Remove malfunction"
+                onClick={() => setMalfs((prev) => prev.filter((_, x) => x !== i))}>✕</button>
+            </div>
+            <label className="field">What happened
+              <select value={m.type}
+                onChange={(e) => setMalfs((p) => p.map((x, n) => n === i ? { ...x, type: e.target.value } : x))}>
+                <option value="">Pick one…</option>
+                {MALF_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <label className="field">Which gun
+              <select value={m.firearmId}
+                onChange={(e) => setMalfs((p) => p.map((x, n) => n === i ? { ...x, firearmId: e.target.value } : x))}>
+                {(selectedGuns.length ? selectedGuns : firearms).map((f) =>
+                  <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </label>
+            <label className="field">How you cleared it
+              <input value={m.resolution}
+                onChange={(e) => setMalfs((p) => p.map((x, n) => n === i ? { ...x, resolution: e.target.value } : x))} />
+            </label>
+            <label className="field">Notes
+              <input value={m.notes}
+                onChange={(e) => setMalfs((p) => p.map((x, n) => n === i ? { ...x, notes: e.target.value } : x))} />
+            </label>
+          </div>
+        ))}
+        <button className="button secondary" onClick={() => setMalfs((prev) => [
+          ...prev,
+          { firearmId: (selectedGuns[0] ?? firearms[0])?.id ?? '', type: '', resolution: '', notes: '' }
+        ])}>+ Add Malfunction</button>
+      </div>
+
+      <div className="card">
         <h2>How It Felt (1–5, optional)</h2>
         {(['focus', 'fundamentals', 'satisfaction'] as const).map((k) => (
           <div className="row" key={k}>
@@ -254,7 +398,9 @@ export function SessionForm({ id, onSaved, onCancel }: {
         </label>
       </div>
 
-      <button className="button" onClick={() => void save()}>{editing ? 'Save Changes' : 'Save Session'}</button>
+      <button className="button" disabled={saving} onClick={() => void save()}>
+        {saving ? 'Saving…' : editing ? 'Save Changes' : 'Save Session'}
+      </button>
 
       {picking && (
         <Sheet title="Pick a Drill" onClose={() => setPicking(false)}>

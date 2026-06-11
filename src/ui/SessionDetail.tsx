@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import type { Firearm, Media, Session } from '../lib/types.ts';
+import type { Firearm, MalfunctionEntry, Media, Session } from '../lib/types.ts';
 import { deleteOne, getAll, getOne } from '../lib/db.ts';
 import { formatDayKey } from '../lib/dates.ts';
 import { sessionRounds } from '../lib/stats.ts';
 import { mediaUrl } from './media.ts';
 import { ConfirmSheet } from './Sheet.tsx';
+import { PhotoSheet } from './PhotoSheet.tsx';
 
 const TYPE_LABEL: Record<string, string> = {
   practice: 'Live practice', dry_fire: 'Dry fire', class: 'Class'
@@ -16,29 +17,37 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
   const [session, setSession] = useState<Session | null>(null);
   const [firearms, setFirearms] = useState<Firearm[]>([]);
   const [photos, setPhotos] = useState<Media[]>([]);
+  const [malfs, setMalfs] = useState<MalfunctionEntry[]>([]);
   const [confirming, setConfirming] = useState(false);
+  const [viewing, setViewing] = useState<Media | null>(null);
+  const [localBump, setLocalBump] = useState(0);
 
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [s, f, media] = await Promise.all([
+      const [s, f, media, allMalfs] = await Promise.all([
         getOne<Session>('sessions', id),
         getAll<Firearm>('firearms'),
-        getAll<Media>('media')
+        getAll<Media>('media'),
+        getAll<MalfunctionEntry>('malfunctions')
       ]);
       if (!alive || !s) return;
       setSession(s);
       setFirearms(f);
       setPhotos(media.filter((m) => m.ownerType === 'session' && m.ownerId === id));
+      setMalfs(allMalfs.filter((m) => m.sessionId === id));
     })();
     return () => { alive = false; };
-  }, [id, refreshKey]);
+  }, [id, refreshKey, localBump]);
 
   if (!session) return <div className="screen" />;
 
   const gunName = (fid: string) => firearms.find((f) => f.id === fid)?.name ?? '—';
 
   async function reallyDelete() {
+    // The session's photos and malfunction records go with it.
+    for (const p of photos) await deleteOne('media', p.id);
+    for (const m of malfs) await deleteOne('malfunctions', m.id);
     await deleteOne('sessions', id);
     onDeleted();
   }
@@ -90,6 +99,22 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
         </div>
       )}
 
+      {malfs.length > 0 && (
+        <div className="card">
+          <h2>Malfunctions</h2>
+          {malfs.map((m) => (
+            <div className="row" key={m.id}>
+              <span className="label">
+                {m.type} — {gunName(m.firearmId)}
+                {(m.resolution || m.notes) && (
+                  <div className="row-sub">{[m.resolution, m.notes].filter(Boolean).join(' · ')}</div>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {session.selfRating && Object.keys(session.selfRating).length > 0 && (
         <div className="card">
           <h2>How It Felt</h2>
@@ -104,9 +129,16 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
 
       {photos.length > 0 && (
         <div className="card">
-          <h2>Targets</h2>
+          <h2>Targets, Photos &amp; Videos</h2>
+          <p className="report-note" style={{ marginBottom: 8 }}>Tap one to name it, jot notes, or remove it.</p>
           <div className="photo-grid">
-            {photos.map((m) => <img key={m.id} src={mediaUrl(m)} alt={m.name} loading="lazy" />)}
+            {photos.map((m) => (
+              <button className="thumb-tap" key={m.id} onClick={() => setViewing(m)} aria-label={m.name}>
+                {m.kind === 'video'
+                  ? <video src={mediaUrl(m)} preload="metadata" muted playsInline />
+                  : <img src={mediaUrl(m)} alt={m.name} loading="lazy" />}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -123,11 +155,15 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
       {confirming && (
         <ConfirmSheet
           title="Delete this session?"
-          message="This removes the session and its round counts. There's no undo."
+          message="This removes the session, its photos, and its round counts. There's no undo."
           confirmLabel="Delete Session"
           onConfirm={() => void reallyDelete()}
           onClose={() => setConfirming(false)}
         />
+      )}
+      {viewing && (
+        <PhotoSheet media={viewing} onClose={() => setViewing(null)}
+          onChanged={() => setLocalBump((b) => b + 1)} />
       )}
     </div>
   );

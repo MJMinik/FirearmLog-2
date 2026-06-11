@@ -121,11 +121,14 @@ export async function commitDataSet(
   }
   await txDone(tx);
 
-  // Imports REPLACE the drill library (old imports may have left random-ID
-  // copies). Safe today because drills only come from imports; revisit when
-  // in-app drill editing lands so custom drills survive a re-import.
+  // Imports replace import-derived drills (IDs starting 'dr-'). Custom drills
+  // made in the app use 'drx-' IDs and survive a re-import untouched.
+  // (Edits made to imported drills are reset by a re-import — by design.)
+  const existingDrills = await getAll<{ id: string }>('drills');
   const dtx0 = db.transaction('drills', 'readwrite');
-  dtx0.objectStore('drills').clear();
+  for (const d of existingDrills) {
+    if (d.id.startsWith('dr-')) dtx0.objectStore('drills').delete(d.id);
+  }
   for (const d of data.drills) dtx0.objectStore('drills').put(d);
   await txDone(dtx0);
 

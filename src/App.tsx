@@ -9,6 +9,8 @@ import { GunDetail } from './ui/GunDetail.tsx';
 import { GunForm } from './ui/GunForm.tsx';
 import { SessionDetail } from './ui/SessionDetail.tsx';
 import { SessionForm } from './ui/SessionForm.tsx';
+import { DrillsScreen, DrillForm } from './ui/DrillsScreen.tsx';
+import { MagazinesScreen, MagazineForm } from './ui/MagazinesScreen.tsx';
 
 export function App() {
   const [tab, setTabState] = useState<TabId>('home');
@@ -40,6 +42,24 @@ export function App() {
     content = <SessionForm id={v.id}
       onCancel={() => setView(v.id !== undefined ? { kind: 'session-detail', id: v.id } : null)}
       onSaved={(sid) => { refresh(); setView({ kind: 'session-detail', id: sid }); }} />;
+  } else if (view?.kind === 'drills') {
+    content = <DrillsScreen refreshKey={refreshKey}
+      onBack={() => setView(null)}
+      openForm={(did) => setView({ kind: 'drill-form', id: did })} />;
+  } else if (view?.kind === 'drill-form') {
+    const v = view;
+    content = <DrillForm id={v.id}
+      onCancel={() => setView({ kind: 'drills' })}
+      onSaved={() => { refresh(); setView({ kind: 'drills' }); }} />;
+  } else if (view?.kind === 'magazines') {
+    content = <MagazinesScreen refreshKey={refreshKey}
+      onBack={() => setView(null)}
+      openForm={(mid) => setView({ kind: 'magazine-form', id: mid })} />;
+  } else if (view?.kind === 'magazine-form') {
+    const v = view;
+    content = <MagazineForm id={v.id}
+      onCancel={() => setView({ kind: 'magazines' })}
+      onSaved={() => { refresh(); setView({ kind: 'magazines' }); }} />;
   } else if (tab === 'home') {
     content = <HomeScreen refreshKey={refreshKey} onImported={refresh} open={setView} />;
   } else if (tab === 'log') {

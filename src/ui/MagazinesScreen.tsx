@@ -1,0 +1,132 @@
+// Magazines: carried over from Pistol Tracker, now editable.
+import { useEffect, useState } from 'react';
+import type { Firearm, Magazine } from '../lib/types.ts';
+import { getAll, getOne, putOne } from '../lib/db.ts';
+import { newId } from '../lib/id.ts';
+import { stampNew, stampUpdate } from '../lib/stamps.ts';
+
+export function MagazinesScreen({ refreshKey, onBack, openForm }: {
+  refreshKey: number; onBack: () => void; openForm: (id?: string) => void;
+}) {
+  const [mags, setMags] = useState<Magazine[]>([]);
+  const [firearms, setFirearms] = useState<Firearm[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void Promise.all([getAll<Magazine>('magazines'), getAll<Firearm>('firearms')]).then(([m, f]) => {
+      if (!alive) return;
+      setMags(m.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true })));
+      setFirearms(f);
+    });
+    return () => { alive = false; };
+  }, [refreshKey]);
+
+  const gunNames = (ids: string[]) =>
+    ids.map((id) => firearms.find((f) => f.id === id)?.name ?? '—').join(', ');
+
+  return (
+    <div className="screen">
+      <div className="navbar">
+        <button className="back-btn" onClick={onBack}>‹ Back</button>
+        <span />
+      </div>
+      <h1 className="large-title">Magazines</h1>
+      <button className="button" onClick={() => openForm()}>+ Add Magazine</button>
+      <div className="card" style={{ marginTop: 16 }}>
+        <h2>All Magazines</h2>
+        {mags.map((m) => (
+          <button className="row-tap" key={m.id} onClick={() => openForm(m.id)}>
+            <span className="label">
+              {m.label}{m.active ? '' : ' (retired)'}
+              <div className="row-sub">{gunNames(m.firearmIds) || 'No gun assigned'}</div>
+            </span>
+            <span className="value">{m.totalRounds.toLocaleString()} rds ›</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function MagazineForm({ id, onSaved, onCancel }: {
+  id?: string; onSaved: () => void; onCancel: () => void;
+}) {
+  const [original, setOriginal] = useState<Magazine | null>(null);
+  const [firearms, setFirearms] = useState<Firearm[]>([]);
+  const [label, setLabel] = useState('');
+  const [gunIds, setGunIds] = useState<string[]>([]);
+  const [active, setActive] = useState(true);
+  const [totalRounds, setTotalRounds] = useState('0');
+  const [notes, setNotes] = useState('');
+  const [problem, setProblem] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    void getAll<Firearm>('firearms').then((f) => {
+      if (alive) setFirearms(f.sort((a, b) => a.name.localeCompare(b.name)));
+    });
+    if (id !== undefined) {
+      void getOne<Magazine>('magazines', id).then((m) => {
+        if (!alive || !m) return;
+        setOriginal(m);
+        setLabel(m.label); setGunIds(m.firearmIds); setActive(m.active);
+        setTotalRounds(String(m.totalRounds)); setNotes(m.notes);
+      });
+    }
+    return () => { alive = false; };
+  }, [id]);
+
+  async function save() {
+    if (!label.trim()) { setProblem('Give the magazine a label (like A01).'); return; }
+    const rounds = Number(totalRounds);
+    if (!Number.isFinite(rounds) || rounds < 0) { setProblem('Rounds needs to be a plain number.'); return; }
+    const fields = { label: label.trim(), firearmIds: gunIds, active, totalRounds: rounds, notes: notes.trim() };
+    if (original) {
+      await putOne('magazines', stampUpdate({ ...original, ...fields }, Date.now()));
+    } else {
+      await putOne('magazines', stampNew({ ...fields, springHistory: [] }, newId('mg'), Date.now()));
+    }
+    onSaved();
+  }
+
+  return (
+    <div className="screen">
+      <div className="navbar">
+        <button className="back-btn" onClick={onCancel}>‹ Cancel</button>
+        <button className="navbar-action" onClick={() => void save()}>Save</button>
+      </div>
+      <h1 className="large-title">{original ? 'Edit Magazine' : 'New Magazine'}</h1>
+      {problem && <p className="form-problem">{problem}</p>}
+      <div className="card">
+        <label className="field">Label
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="A01" />
+        </label>
+        <h2>Used With</h2>
+        {firearms.map((f) => {
+          const on = gunIds.includes(f.id);
+          return (
+            <div className="row" key={f.id}>
+              <button className={`gun-toggle ${on ? 'on' : ''}`} aria-pressed={on}
+                onClick={() => setGunIds((prev) => on ? prev.filter((x) => x !== f.id) : [...prev, f.id])}>
+                {f.name}
+              </button>
+            </div>
+          );
+        })}
+        <label className="field" style={{ marginTop: 12 }}>Rounds through it
+          <input type="number" inputMode="numeric" min="0" value={totalRounds}
+            onChange={(e) => setTotalRounds(e.target.value)} />
+        </label>
+        <div className="row">
+          <button className={`gun-toggle ${active ? 'on' : ''}`} aria-pressed={active}
+            onClick={() => setActive(!active)}>
+            In service (turn off to retire it)
+          </button>
+        </div>
+        <label className="field">Notes
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </label>
+      </div>
+      <button className="button" onClick={() => void save()}>{original ? 'Save Changes' : 'Add Magazine'}</button>
+    </div>
+  );
+}

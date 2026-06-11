@@ -151,6 +151,17 @@ export function MoreScreen({ refreshKey, onImported, open }: {
         </div>
       </div>
       <div className="card">
+        <h2>Gear &amp; Library</h2>
+        <button className="row-tap" onClick={() => open({ kind: 'drills' })}>
+          <span className="label">Drills</span>
+          <span className="value">›</span>
+        </button>
+        <button className="row-tap" onClick={() => open({ kind: 'magazines' })}>
+          <span className="label">Magazines</span>
+          <span className="value">›</span>
+        </button>
+      </div>
+      <div className="card">
         <h2>Settings &amp; Data</h2>
         <p className="report-note" style={{ marginBottom: 12 }}>
           Import your Pistol Tracker backup here. Running it again simply re-applies the same
