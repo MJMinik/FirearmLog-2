@@ -1,7 +1,7 @@
 // The data layer (spec §3.2). Nothing else in the app touches IndexedDB.
 // This module is the seam where a cloud sync service could plug in later.
 
-import type { DataSet } from './types.ts';
+import type { DataSet, Media } from './types.ts';
 
 const DB_NAME = 'firearmlog';
 const SCHEMA_VERSION = 1;
@@ -121,6 +121,21 @@ export async function commitDataSet(
     tx.objectStore('meta').put({ key: 'settings', value: settings });
   }
   await txDone(tx);
+
+  // Re-imports must never duplicate photos: clear out any existing photos
+  // that belong to the records we just (re)wrote, then save the fresh set.
+  const ownerIds = new Set<string>();
+  for (const f of data.firearms) ownerIds.add(f.id);
+  for (const sn of data.sessions) ownerIds.add(sn.id);
+  for (const m of data.matches) ownerIds.add(m.id);
+  const existing = await getAll<Media>('media');
+  for (const m of existing) {
+    if (ownerIds.has(m.ownerId)) {
+      const dtx = db.transaction('media', 'readwrite');
+      dtx.objectStore('media').delete(m.id);
+      await txDone(dtx);
+    }
+  }
 
   // Photos one at a time, with progress and breathing room for the browser.
   const total = data.media.length;

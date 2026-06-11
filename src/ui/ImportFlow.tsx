@@ -50,8 +50,8 @@ export function ImportFlow({ onImported }: { onImported: () => void }) {
       if (savedPhotos < data.media.length) {
         throw new Error(`Only ${savedPhotos} of ${data.media.length} photos saved. Nothing was lost from your old file — just try the import again.`);
       }
+      // Don't refresh the screens yet — the report stays up until Done is tapped.
       setStep({ name: 'done', report });
-      onImported();
     } catch (e) {
       setStep({ name: 'error', message: e instanceof Error ? e.message : 'The import did not finish.' });
     }
@@ -159,6 +159,9 @@ export function ImportFlow({ onImported }: { onImported: () => void }) {
           ? 'Every count matches the old app. Your data made the trip with nothing left behind.'
           : 'Something didn’t line up. Your old file is untouched — tell Claude what you see above.'}
       </p>
+      <div style={{ marginTop: 14 }}>
+        <button className="button" onClick={onImported}>Done</button>
+      </div>
     </div>
   );
 }

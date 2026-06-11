@@ -171,11 +171,12 @@ export function importPistolTracker(
   const media: Media[] = [];
 
   const addMedia = (
-    ownerType: Media['ownerType'], ownerId: string, dataUrl: unknown, name: string
+    ownerType: Media['ownerType'], ownerId: string, dataUrl: unknown, name: string, seq: number
   ): string | null => {
     if (typeof dataUrl !== 'string') return null;
     const converted = dataUrlToBytes(dataUrl);
     if (!converted) return null;
+    // Deterministic ID: importing the same file twice overwrites instead of duplicating.
     const rec: Media = stamp({
       ownerType, ownerId,
       kind: 'image' as const,
@@ -183,7 +184,7 @@ export function importPistolTracker(
       annotations: [],
       mime: converted.mime,
       data: converted.buffer
-    }, newId('md'), now);
+    }, `md-${ownerId}-${seq}`, now);
     media.push(rec);
     return rec.id;
   };
@@ -195,7 +196,7 @@ export function importPistolTracker(
     const photos = arr(f.insurancePhotos);
     imagesIn += photos.length;
     const photoIds = photos
-      .map((p, i) => addMedia('firearm', id, p, `${str(f.name)} — insurance photo ${i + 1}`))
+      .map((p, i) => addMedia('firearm', id, p, `${str(f.name)} — insurance photo ${i + 1}`, i))
       .filter((x): x is string => x !== null);
     const mapped = ['id', 'name', 'manufacturer', 'model', 'caliber', 'serialNumber', 'dateAcquired',
       'startingRoundCount', 'recoilSpringInterval', 'recoilSpringWeight', 'barrelName',
@@ -232,7 +233,7 @@ export function importPistolTracker(
     const images = arr(s.targetImages);
     imagesIn += images.length;
     const targetMediaIds = images
-      .map((p, i) => addMedia('session', id, p, `Target photo ${i + 1} — ${str(s.date)}`))
+      .map((p, i) => addMedia('session', id, p, `Target photo ${i + 1} — ${str(s.date)}`, i))
       .filter((x): x is string => x !== null);
     const mapped = ['id', 'date', 'type', 'firearmId', 'firearmSplits', 'multiFirearm', 'location',
       'distances', 'notes', 'ammoUsage', 'drills', 'targetImages', 'malfunctions', 'selfRating',

@@ -111,6 +111,14 @@ test('zero loss: unmapped old fields land in legacy', () => {
   assert.equal(data.sessions.find(s => s.id === 'se-1')!.legacy?._dropdownFirearmId, 'fa-1');
 });
 
+test('re-importing the same file produces identical photo IDs (no duplicates)', () => {
+  const old1 = parseOldFile(fixtureText);
+  const old2 = parseOldFile(fixtureText);
+  const a = importPistolTracker(old1, {}, NOW);
+  const b = importPistolTracker(old2, {}, NOW + 5000);
+  assert.deepEqual(a.data.media.map(m => m.id), b.data.media.map(m => m.id));
+});
+
 test('trash and settings are carried over', () => {
   const old = parseOldFile(fixtureText);
   const { data, settings } = importPistolTracker(old, {}, NOW);
