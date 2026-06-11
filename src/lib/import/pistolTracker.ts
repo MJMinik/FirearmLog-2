@@ -8,6 +8,7 @@ import type {
   Session, SessionGun, SkillAssessment, TrashItem
 } from '../types.ts';
 import { newId } from '../id.ts';
+import { roundsForFirearm } from '../stats.ts';
 
 // ---------- What the old file looks like (only what we rely on) ----------
 
@@ -122,20 +123,7 @@ export function oldStyleRoundCount(old: OldFile, firearmId: string): number {
 
 /** Round count computed from the NEW records — must equal the old number. */
 export function newStyleRoundCount(data: DataSet, firearmId: string): number {
-  const fa = data.firearms.find(f => f.id === firearmId);
-  if (!fa) return 0;
-  let total = fa.startingRoundCount;
-  for (const s of data.sessions) {
-    if (s.planned) continue;
-    for (const g of s.guns) {
-      if (g.firearmId === firearmId) total += g.rounds;
-    }
-  }
-  for (const m of data.matches) {
-    const mm = m as { firearmId?: unknown; totalRounds?: unknown };
-    if (mm.firearmId === firearmId && mm.totalRounds) total += num(mm.totalRounds);
-  }
-  return total;
+  return roundsForFirearm(firearmId, data.firearms, data.sessions, data.matches);
 }
 
 export interface CountRow { label: string; inCount: number; outCount: number; ok: boolean; }

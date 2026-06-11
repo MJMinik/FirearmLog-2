@@ -1,0 +1,46 @@
+// Round-count math in ONE place (DRY). The importer and every screen use these,
+// so the numbers can never disagree with each other.
+
+import type { Session } from './types.ts';
+
+/** Rounds fired in one session, all guns combined. */
+export function sessionRounds(s: Pick<Session, 'guns'>): number {
+  return s.guns.reduce((sum, g) => sum + (g.rounds || 0), 0);
+}
+
+interface FirearmLike { id: string; startingRoundCount: number; }
+interface MatchLike { firearmId?: unknown; totalRounds?: unknown; }
+
+/**
+ * Lifetime round count for one gun: starting count + every non-planned
+ * session's rounds for that gun + match rounds. Mirrors the old app exactly.
+ */
+export function roundsForFirearm(
+  firearmId: string,
+  firearms: FirearmLike[],
+  sessions: Pick<Session, 'guns' | 'planned'>[],
+  matches: MatchLike[]
+): number {
+  const fa = firearms.find(f => f.id === firearmId);
+  if (!fa) return 0;
+  let total = fa.startingRoundCount || 0;
+  for (const s of sessions) {
+    if (s.planned) continue;
+    for (const g of s.guns) {
+      if (g.firearmId === firearmId) total += g.rounds || 0;
+    }
+  }
+  for (const m of matches) {
+    if (m.firearmId === firearmId && typeof m.totalRounds === 'number') total += m.totalRounds;
+  }
+  return total;
+}
+
+/** Lifetime rounds across all guns. */
+export function totalRounds(
+  firearms: FirearmLike[],
+  sessions: Pick<Session, 'guns' | 'planned'>[],
+  matches: MatchLike[]
+): number {
+  return firearms.reduce((sum, f) => sum + roundsForFirearm(f.id, firearms, sessions, matches), 0);
+}

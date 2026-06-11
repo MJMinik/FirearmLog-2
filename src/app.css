@@ -168,3 +168,88 @@ select.category-pick {
 .tabbar .glyph { font-size: 22px; line-height: 1; }
 
 .report-note { font-size: 15px; line-height: 1.45; color: var(--text-dim); margin-top: 10px; }
+
+/* ---------- M2: navigation bar on pushed screens ---------- */
+.navbar { display: flex; justify-content: space-between; align-items: center; min-height: 44px; }
+.back-btn, .navbar-action {
+  background: none; border: none; color: var(--accent);
+  font-size: 17px; min-height: 44px; min-width: 44px; padding: 0 4px; cursor: pointer;
+}
+.navbar-action { font-weight: 600; }
+
+/* ---------- M2: forms ---------- */
+.field { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 12px; }
+.field input, .field select, .field textarea {
+  display: block; width: 100%; margin-top: 4px; min-height: 44px;
+  border: 0.5px solid var(--separator); border-radius: 10px;
+  background: var(--bg); color: var(--text); padding: 10px 12px;
+}
+.field textarea { min-height: 80px; }
+.field.small { flex: 1; }
+.form-problem { color: var(--danger); margin: -4px 0 12px; font-size: 15px; }
+
+.seg { display: flex; background: var(--bg); border-radius: 10px; padding: 3px; margin-bottom: 12px; }
+.seg button {
+  flex: 1; min-height: 40px; border: none; background: none; border-radius: 8px;
+  color: var(--text); font-size: 15px; cursor: pointer;
+}
+.seg button.on { background: var(--bg-card); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); }
+
+.gun-toggle {
+  flex: 1; text-align: left; background: none; border: none; color: var(--text);
+  font-size: 17px; min-height: 44px; cursor: pointer; padding: 0; opacity: 0.55;
+}
+.gun-toggle.on { opacity: 1; font-weight: 600; }
+.gun-toggle.on::before { content: '✓ '; color: var(--accent); }
+.rounds-input {
+  width: 96px; min-height: 44px; border: 0.5px solid var(--separator); border-radius: 10px;
+  background: var(--bg); color: var(--text); padding: 8px 10px; text-align: right;
+}
+
+.drill-edit { border-bottom: 0.5px solid var(--separator); padding: 10px 0 6px; }
+.drill-edit:last-of-type { border-bottom: none; }
+.drill-edit-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.drill-edit-fields { display: flex; gap: 8px; }
+
+.icon-btn {
+  background: none; border: none; color: var(--text-dim);
+  font-size: 17px; min-width: 44px; min-height: 44px; cursor: pointer;
+}
+
+/* ---------- M2: sheets (the one shared modal) ---------- */
+.sheet-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); z-index: 50;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.sheet {
+  background: var(--bg-card); width: 100%; max-width: 720px;
+  border-radius: 16px 16px 0 0; max-height: 75dvh; overflow: auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+}
+.sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.sheet-head h3 { font-size: 17px; }
+
+.drill-pick-row {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
+  background: none; border: none; border-bottom: 0.5px solid var(--separator);
+  color: var(--text); text-align: left; padding: 12px 0; min-height: 44px;
+  cursor: pointer; font-size: 16px;
+}
+.drill-pick-row:last-child { border-bottom: none; }
+.drill-pick-row span { color: var(--text-dim); font-size: 13px; }
+
+/* ---------- M2: photos, tappable rows, misc ---------- */
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.photo-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; }
+.note-text { font-size: 16px; line-height: 1.5; white-space: pre-wrap; }
+.button.danger { background: var(--danger); }
+
+.row-tap {
+  width: 100%; background: none; border: none; color: var(--text); text-align: left;
+  font-size: 17px; cursor: pointer; padding: 6px 0; display: flex; align-items: center;
+  justify-content: space-between; gap: 12px; min-height: 44px;
+  border-bottom: 0.5px solid var(--separator);
+}
+.row-tap:last-child { border-bottom: none; }
+.row-tap .value { color: var(--text-dim); text-align: right; flex-shrink: 0; }
+.row-sub { font-size: 13px; color: var(--text-dim); font-weight: 400; }
