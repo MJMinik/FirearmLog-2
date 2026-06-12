@@ -41,6 +41,9 @@ export function App() {
   }, []);
 
   const setTab = (t: TabId) => { replace(null); setTabState(t); };
+  // Desktop sidebar section links (C1): re-clicking the open section is a no-op
+  // so it can't stack duplicate history entries.
+  const openSection = (v: View) => { if (view?.kind !== v.kind) push(v); };
 
   let content;
   if (view?.kind === 'gun-detail') {
@@ -160,7 +163,7 @@ export function App() {
   return (
     <>
       {content}
-      <TabBar active={tab} onChange={setTab} />
+      <TabBar active={tab} onChange={setTab} view={view} onOpen={openSection} />
     </>
   );
 }

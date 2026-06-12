@@ -268,20 +268,37 @@ select.category-pick {
   font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 
-/* ---------- M3: desktop layout — same screens, sidebar instead of tab bar ---------- */
+/* ---------- M3 + C1: desktop layout — same screens, FULL sidebar instead of tab bar ---------- */
+/* Phone: only the 5 tabs show; the sidebar-only extras stay hidden. */
+.tabbar .sidebar-only, .side-title, .nav-group-label, .nav-divider, .label-desk { display: none; }
+
 @media (min-width: 900px) {
   .tabbar {
     top: 0; bottom: 0; right: auto; width: 220px;
     flex-direction: column; justify-content: flex-start;
     border-top: none; border-right: 0.5px solid var(--separator);
     padding: 24px 8px 8px;
+    overflow-y: auto;
   }
   .tabbar button {
     flex: none; width: 100%; flex-direction: row; justify-content: flex-start;
     gap: 12px; padding: 10px 14px; font-size: 15px; border-radius: 10px; min-height: 44px;
   }
   .tabbar button.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-  .tabbar .glyph { font-size: 18px; }
+  .tabbar .glyph { font-size: 18px; width: 22px; text-align: center; }
+  /* C1: every section gets its own sidebar entry on desktop. */
+  .tabbar button.sidebar-only { display: flex; }
+  .side-title {
+    display: block; font-size: 20px; font-weight: 700; color: var(--text);
+    padding: 0 14px 14px;
+  }
+  .nav-group-label {
+    display: block; font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--text-dim); padding: 18px 14px 6px;
+  }
+  .nav-divider { display: block; border-top: 0.5px solid var(--separator); margin: 14px 14px 6px; }
+  .label-desk { display: inline; }
+  .label-phone { display: none; }
   .screen {
     margin-left: 220px; max-width: 860px;
     padding-bottom: 32px;
