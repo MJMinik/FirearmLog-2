@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import type { Ammunition, Purchase, Session } from '../lib/types.ts';
 import { deleteOne, getAll, getOne, putOne } from '../lib/db.ts';
+import { todayKey } from '../lib/dates.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
 import { ammoCurrentCostPerRound, lowAmmo } from '../lib/costing.ts';
@@ -99,6 +100,10 @@ export function AmmoForm({ id, onSaved, onCancel }: {
   const [notes, setNotes] = useState('');
   const [usedBy, setUsedBy] = useState(0);
   const [allAmmo, setAllAmmo] = useState<Ammunition[]>([]);
+  const [purchRounds, setPurchRounds] = useState('');
+  const [purchCost, setPurchCost] = useState('');
+  const [purchVendor, setPurchVendor] = useState('');
+  const [pastVendors, setPastVendors] = useState<string[]>([]);
   const [problem, setProblem] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [dupe, setDupe] = useState<Ammunition | null>(null);
@@ -107,6 +112,9 @@ export function AmmoForm({ id, onSaved, onCancel }: {
     let alive = true;
     void getAll<Ammunition>('ammunition').then((cans) => {
       if (alive) setAllAmmo(cans);
+    });
+    void getAll<Purchase>('purchases').then((all) => {
+      if (alive) setPastVendors(recentValues(all.map((p) => ({ date: p.date, value: p.vendor }))));
     });
     if (id !== undefined) {
       void Promise.all([getOne<Ammunition>('ammunition', id), getAll<Session>('sessions')]).then(([a, s]) => {
@@ -126,13 +134,33 @@ export function AmmoForm({ id, onSaved, onCancel }: {
   const pastBrands = recentValues(allAmmo.map((a) => ({ date: String(a.updatedAt), value: a.brand })));
   const pastCalibers = recentValues(allAmmo.map((a) => ({ date: String(a.updatedAt), value: a.caliber })));
 
-  function checkNumbers(): { qty: number; cpr: number } | null {
+  function checkNumbers(): { qty: number; cpr: number; pr: number; pc: number } | null {
     if (!brand.trim() && !caliber.trim()) { setProblem('Give it at least a brand or a caliber.'); return null; }
     const qty = quantity.trim() === '' ? 0 : Number(quantity);
     const cpr = costPerRound.trim() === '' ? 0 : Number(costPerRound);
-    if (!Number.isFinite(qty) || qty < 0) { setProblem('Rounds on hand needs to be a plain number.'); return null; }
+    const pr = purchRounds.trim() === '' ? 0 : Number(purchRounds);
+    const pc = purchCost.trim() === '' ? 0 : Number(purchCost);
+    if (!Number.isFinite(qty) || qty < 0) { setProblem('Rounds on the shelf needs to be a plain number.'); return null; }
     if (!Number.isFinite(cpr) || cpr < 0) { setProblem('Cost per round needs to be a plain number, like 0.30.'); return null; }
-    return { qty, cpr };
+    if (!Number.isFinite(pr) || pr < 0 || !Number.isFinite(pc) || pc < 0) {
+      setProblem('Purchase rounds and price need to be plain numbers.'); return null;
+    }
+    if ((pr > 0) !== (pc > 0)) {
+      setProblem('For the purchase, fill in both the rounds and what you paid — or leave both blank.'); return null;
+    }
+    return { qty, cpr, pr, pc };
+  }
+
+  /** The "Buying it now?" section saves a real Ammo Purchase linked to the can. */
+  async function savePurchase(canId: string, pr: number, pc: number, now: number) {
+    if (!(pr > 0) || !(pc > 0)) return;
+    const label = ammoLabel({ brand: brand.trim(), caliber: caliber.trim(), grain: grain.trim(), bulletType });
+    await putOne('purchases', stampNew({
+      date: todayKey(), category: 'Ammo Purchase',
+      item: `${pr.toLocaleString()} rds ${label}`.trim(),
+      vendor: purchVendor.trim(), cost: pc, notes: '',
+      ammoId: canId, rounds: pr, addedToInventory: true
+    }, newId('pu'), now));
   }
 
   async function save(keepSeparate = false) {
@@ -147,8 +175,12 @@ export function AmmoForm({ id, onSaved, onCancel }: {
       if (other) { setDupe(other); return; }
     }
     const now = Date.now();
-    if (original) await putOne('ammunition', stampUpdate({ ...original, ...fields }, now));
-    else await putOne('ammunition', stampNew(fields, newId('am'), now));
+    // Purchased rounds go on the shelf on top of whatever was typed above.
+    const canId = original ? original.id : newId('am');
+    const withPurchase = { ...fields, quantity: fields.quantity + n.pr };
+    if (original) await putOne('ammunition', stampUpdate({ ...original, ...withPurchase }, now));
+    else await putOne('ammunition', stampNew(withPurchase, canId, now));
+    await savePurchase(canId, n.pr, n.pc, now);
     onSaved();
   }
 
@@ -162,10 +194,11 @@ export function AmmoForm({ id, onSaved, onCancel }: {
     const extraNotes = notes.trim() && notes.trim() !== other.notes ? notes.trim() : '';
     await putOne('ammunition', stampUpdate({
       ...other,
-      quantity: merged.quantity,
+      quantity: merged.quantity + n.pr, // purchased rounds land on the kept can too
       costPerRound: merged.costPerRound,
       notes: [other.notes, extraNotes].filter(Boolean).join(' · ')
     }, now));
+    await savePurchase(other.id, n.pr, n.pc, now);
     if (original) {
       // Every session and purchase that pointed at the duplicate now points
       // at the kept can, so history and FIFO costing survive the merge.
@@ -231,6 +264,28 @@ export function AmmoForm({ id, onSaved, onCancel }: {
           <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
       </div>
+
+      {!editing && (
+        <div className="card">
+          <h2>Buying It Now? (optional)</h2>
+          <label className="field">Rounds purchased
+            <input type="number" inputMode="numeric" min="0" value={purchRounds}
+              onChange={(e) => setPurchRounds(e.target.value)} placeholder="1000" />
+          </label>
+          <label className="field">What you paid, total ($)
+            <input type="number" inputMode="decimal" min="0" step="0.01" value={purchCost}
+              onChange={(e) => setPurchCost(e.target.value)} placeholder="299.99" />
+          </label>
+          <SuggestField label="Vendor (optional)" value={purchVendor} onChange={setPurchVendor}
+            suggestions={pastVendors} placeholder="Primary Arms" />
+          <p className="report-note">
+            One Save does it all: this logs the purchase under Costs &amp; Purchases, puts these
+            rounds on the shelf, and prices every round you shoot from it. Don't also count
+            them in the shelf number above.
+          </p>
+        </div>
+      )}
+
       <button className="button" onClick={() => void save()}>{editing ? 'Save Changes' : 'Save Ammo'}</button>
       {editing && (
         <button className="button danger" style={{ marginTop: 8 }} onClick={() => setConfirming(true)}>
