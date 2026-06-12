@@ -130,10 +130,11 @@ test('matchFee: entryFee wins, old `cost` field honored, junk ignored', () => {
   assert.equal(matchFee({ cost: 'free' }), 0);
 });
 
-test('roundsFired counts live sessions and matches, skips planned', () => {
+test('roundsFired counts live sessions and matches, skips planned and dry fire', () => {
   const sessions = [
     { id: 's1', date: '2026-01-01', guns: [{ firearmId: 'f', rounds: 200 }] },
-    { id: 's2', date: '2026-01-02', planned: true, guns: [{ firearmId: 'f', rounds: 999 }] }
+    { id: 's2', date: '2026-01-02', planned: true, guns: [{ firearmId: 'f', rounds: 999 }] },
+    { id: 's3', date: '2026-01-03', type: 'dry_fire', guns: [{ firearmId: 'f', rounds: 500 }] }
   ];
   assert.equal(roundsFired(sessions, [{ totalRounds: 150 }]), 350);
 });

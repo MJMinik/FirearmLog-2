@@ -97,16 +97,19 @@ function stamp<T extends object>(record: T, id: string, at: number): T & { id: s
 }
 
 // ---------- The verification math (spec §6.4) ----------
-// This replicates the OLD app's firearmRoundCount() exactly: starting count
+// This replicates the OLD app's firearmRoundCount(): starting count
 // + per-session rounds (splits win over the single firearmId; planned
-// sessions don't count) + match rounds.
+// sessions don't count) + match rounds. ONE deliberate change from the old
+// app: dry-fire sessions are skipped on BOTH sides of the comparison —
+// dry reps aren't rounds fired (Michael, June 11, 2026), and the new
+// round math (stats.ts) excludes them too.
 
 export function oldStyleRoundCount(old: OldFile, firearmId: string): number {
   const fa = (old.firearms ?? []).find(f => f.id === firearmId);
   if (!fa) return 0;
   let total = num(fa.startingRoundCount);
   for (const s of old.sessions ?? []) {
-    if (s.planned) continue;
+    if (s.planned || s.type === 'dry_fire') continue;
     const splits = arr(s.firearmSplits) as { firearmId?: string; rounds?: number }[];
     if (splits.length) {
       const split = splits.find(sp => sp.firearmId === firearmId);

@@ -3,7 +3,7 @@ import type { Firearm, MaintenanceEntry, Match, Media, Reference, Session } from
 import { getAll, getOne, putOne } from '../lib/db.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
-import { roundsForFirearm } from '../lib/stats.ts';
+import { dryRepsForFirearm, roundsForFirearm } from '../lib/stats.ts';
 import { maintLabel, maintenanceStatus } from '../lib/maintenance.ts';
 import { buildRefLookup, referencesForCategory, toEntry } from '../lib/referenceData.ts';
 import { formatDayKey } from '../lib/dates.ts';
@@ -18,7 +18,7 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
 }) {
   const [gun, setGun] = useState<Firearm | null>(null);
   const [photos, setPhotos] = useState<Media[]>([]);
-  const [stats, setStats] = useState({ rounds: 0, sessions: 0 });
+  const [stats, setStats] = useState({ rounds: 0, sessions: 0, dryReps: 0 });
   const [maintItems, setMaintItems] = useState<ReturnType<typeof maintenanceStatus>>([]);
   const [history, setHistory] = useState<MaintenanceEntry[]>([]);
   const [customRefs, setCustomRefs] = useState<Reference[]>([]);
@@ -44,7 +44,8 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
       setPhotos(media.filter((m) => m.ownerType === 'firearm' && m.ownerId === id));
       setStats({
         rounds: roundsForFirearm(id, firearms, sessions, matches),
-        sessions: sessions.filter((s) => !s.planned && s.guns.some((x) => x.firearmId === id)).length
+        sessions: sessions.filter((s) => !s.planned && s.guns.some((x) => x.firearmId === id)).length,
+        dryReps: dryRepsForFirearm(id, sessions)
       });
       setCustomRefs(refs);
       setMaintItems(maintenanceStatus(g, buildRefLookup(refs)(g.referenceId), sessions, maintenance, firearms, new Date()));
@@ -90,8 +91,11 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
       <h1 className="large-title">{gun.name}</h1>
 
       <div className="stat-grid">
-        <div className="stat"><div className="num">{stats.rounds.toLocaleString()}</div><div className="cap">Lifetime rounds</div></div>
+        <div className="stat"><div className="num">{stats.rounds.toLocaleString()}</div><div className="cap">Lifetime rounds (live fire)</div></div>
         <div className="stat"><div className="num">{stats.sessions}</div><div className="cap">Sessions</div></div>
+        {stats.dryReps > 0 && (
+          <div className="stat"><div className="num">{stats.dryReps.toLocaleString()}</div><div className="cap">Dry-fire reps</div></div>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>

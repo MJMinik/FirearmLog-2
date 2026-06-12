@@ -55,7 +55,7 @@ function SessionRow({ s, firearms, onTap }: { s: Session; firearms: Firearm[]; o
         {formatDayKey(s.date)}
         <div className="row-sub">{names}{s.location ? ` · ${s.location}` : ''}</div>
       </span>
-      <span className="value">{sessionRounds(s).toLocaleString()} rds</span>
+      <span className="value">{sessionRounds(s).toLocaleString()} {s.type === 'dry_fire' ? 'reps' : 'rds'}</span>
     </button>
   );
 }

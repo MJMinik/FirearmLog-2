@@ -82,7 +82,10 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
         <h2>Session</h2>
         <div className="row"><span className="label">Kind</span><span className="value">{TYPE_LABEL[session.type] ?? session.type}</span></div>
         {session.location && <div className="row"><span className="label">Where</span><span className="value">{session.location}</span></div>}
-        <div className="row"><span className="label">Rounds</span><span className="value">{sessionRounds(session).toLocaleString()}</span></div>
+        <div className="row">
+          <span className="label">{session.type === 'dry_fire' ? 'Dry-fire reps' : 'Rounds'}</span>
+          <span className="value">{sessionRounds(session).toLocaleString()}</span>
+        </div>
         {session.rangeFee !== null && <div className="row"><span className="label">Range fee</span><span className="value">${session.rangeFee.toFixed(2)}</span></div>}
       </div>
 
@@ -91,7 +94,7 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
         {session.guns.map((g, i) => (
           <div className="row" key={i}>
             <span className="label">{gunName(g.firearmId)}</span>
-            <span className="value">{g.rounds.toLocaleString()} rds</span>
+            <span className="value">{g.rounds.toLocaleString()} {session.type === 'dry_fire' ? 'reps' : 'rds'}</span>
           </div>
         ))}
       </div>

@@ -56,12 +56,13 @@ test('firearm splits become per-gun rounds; single-gun sessions get one entry', 
   assert.deepEqual(single.guns, [{ firearmId: 'fa-1', rounds: 300 }]);
 });
 
-test('round counts match the old app exactly (incl. splits, planned, starting count)', () => {
+test('round counts survive import (splits, planned, starting count; dry fire never counts)', () => {
   const old = parseOldFile(fixtureText);
   const { data, report } = importPistolTracker(old, {}, NOW);
-  // fa-1: 100 starting + 300 + 400 (split) + 50 (dry) = 850; planned 200 excluded
-  assert.equal(oldStyleRoundCount(old, 'fa-1'), 850);
-  assert.equal(newStyleRoundCount(data, 'fa-1'), 850);
+  // fa-1: 100 starting + 300 + 400 (split) = 800; planned 200 excluded, and
+  // the 50 dry-fire reps are NOT rounds fired (Michael, June 11, 2026).
+  assert.equal(oldStyleRoundCount(old, 'fa-1'), 800);
+  assert.equal(newStyleRoundCount(data, 'fa-1'), 800);
   // fa-2: 0 starting + 20 from the split
   assert.equal(oldStyleRoundCount(old, 'fa-2'), 20);
   assert.equal(newStyleRoundCount(data, 'fa-2'), 20);

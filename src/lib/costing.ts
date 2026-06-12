@@ -12,6 +12,7 @@ export interface UsageLike { ammoId: string; rounds: number }
 export interface CostSessionLike {
   id: string;
   date: string;
+  type?: string;
   planned?: boolean;
   rangeFee?: number | null;
   ammoUsage?: UsageLike[];
@@ -224,11 +225,11 @@ export function costTotals(
   };
 }
 
-/** Rounds actually fired in a period (sessions + matches, planned excluded). */
+/** Rounds actually fired in a period (sessions + matches; planned and dry fire excluded). */
 export function roundsFired(sessions: CostSessionLike[], matches: CostMatchLike[]): number {
   let total = 0;
   for (const s of sessions) {
-    if (s.planned) continue;
+    if (s.planned || s.type === 'dry_fire') continue;
     for (const g of s.guns ?? []) total += g.rounds || 0;
   }
   for (const m of matches) {
