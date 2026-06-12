@@ -9,7 +9,9 @@ import { formatDayKey, todayKey } from '../lib/dates.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
 import { costTotals, gunSpend, purchaseAmmoLink, roundsFired } from '../lib/costing.ts';
+import { recentValues } from '../lib/suggest.ts';
 import { ammoLabel } from './AmmoScreens.tsx';
+import { SuggestField } from './SuggestField.tsx';
 import { ConfirmSheet } from './Sheet.tsx';
 
 const CATEGORIES = [
@@ -139,6 +141,8 @@ export function PurchaseForm({ id, onSaved, onCancel }: {
   const editing = id !== undefined;
   const [original, setOriginal] = useState<Purchase | null>(null);
   const [ammo, setAmmo] = useState<Ammunition[]>([]);
+  const [pastVendors, setPastVendors] = useState<string[]>([]);
+  const [pastItems, setPastItems] = useState<string[]>([]);
   const [date, setDate] = useState(todayKey());
   const [category, setCategory] = useState('Gear / Equipment');
   const [item, setItem] = useState('');
@@ -156,6 +160,11 @@ export function PurchaseForm({ id, onSaved, onCancel }: {
     let alive = true;
     void getAll<Ammunition>('ammunition').then((a) => {
       if (alive) setAmmo(a.sort((x, y) => ammoLabel(x).localeCompare(ammoLabel(y))));
+    });
+    void getAll<Purchase>('purchases').then((all) => {
+      if (!alive) return;
+      setPastVendors(recentValues(all.map((p) => ({ date: p.date, value: p.vendor }))));
+      setPastItems(recentValues(all.map((p) => ({ date: p.date, value: p.item }))));
     });
     if (id !== undefined) {
       void getOne<Purchase>('purchases', id).then((p) => {
@@ -251,13 +260,10 @@ export function PurchaseForm({ id, onSaved, onCancel }: {
             {CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
           </select>
         </label>
-        <label className="field">Item
-          <input value={item} onChange={(e) => setItem(e.target.value)}
-            placeholder={category === 'Ammo Purchase' ? '1,000 rds Blazer Brass 115gr' : 'Safariland holster'} />
-        </label>
-        <label className="field">Vendor (optional)
-          <input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="Primary Arms" />
-        </label>
+        <SuggestField label="Item" value={item} onChange={setItem} suggestions={pastItems}
+          placeholder={category === 'Ammo Purchase' ? '1,000 rds Blazer Brass 115gr' : 'Safariland holster'} />
+        <SuggestField label="Vendor (optional)" value={vendor} onChange={setVendor}
+          suggestions={pastVendors} placeholder="Primary Arms" />
         <label className="field">Cost ($)
           <input type="number" inputMode="decimal" min="0" step="0.01" value={cost}
             onChange={(e) => setCost(e.target.value)} placeholder="0.00" />

@@ -315,3 +315,26 @@ a.button { text-decoration: none; }
 .dot { width: 6px; height: 6px; border-radius: 50%; }
 .dot.session { background: var(--accent); }
 .dot.match { background: var(--warn); }
+
+/* ---------- M6.1: type-ahead suggestions ---------- */
+.suggest-anchor { position: relative; }
+.suggest-list {
+  position: absolute; left: 0; right: 0; z-index: 30;
+  background: var(--bg-card); border: 0.5px solid var(--separator);
+  border-radius: 10px; margin-top: 4px; overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+.suggest-row {
+  display: block; width: 100%; text-align: left; background: none; border: none;
+  color: var(--text); font-size: 17px; min-height: 44px; padding: 10px 12px;
+  cursor: pointer; border-bottom: 0.5px solid var(--separator);
+}
+.suggest-row:last-child { border-bottom: none; }
+
+/* ---------- M6.2: overflow guard (the old app's R1 bug class) ---------- */
+/* No dropdown may ever size itself wider than the screen... */
+select { max-width: 100%; min-width: 0; }
+/* ...and no stray element may widen the page sideways. */
+.screen { overflow-x: hidden; }
+/* Session form ammo rows: dropdown shares the row with the rounds box. */
+.ammo-pick { flex: 1; min-width: 0; }

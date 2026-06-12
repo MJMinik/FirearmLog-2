@@ -8,7 +8,10 @@ import { deleteOne, getAll, getOne, putOne } from '../lib/db.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
 import { ammoCurrentCostPerRound, lowAmmo } from '../lib/costing.ts';
-import { ConfirmSheet } from './Sheet.tsx';
+import { combinedCan, findSameAmmo, repointAmmoUsage, repointPurchaseIds } from '../lib/ammoMerge.ts';
+import { recentValues } from '../lib/suggest.ts';
+import { SuggestField } from './SuggestField.tsx';
+import { ConfirmSheet, Sheet } from './Sheet.tsx';
 
 export const ammoLabel = (a: Pick<Ammunition, 'brand' | 'caliber' | 'grain' | 'bulletType'>): string =>
   [a.brand, a.caliber, a.grain && `${a.grain}gr`, a.bulletType].filter(Boolean).join(' ');
@@ -95,38 +98,90 @@ export function AmmoForm({ id, onSaved, onCancel }: {
   const [costPerRound, setCostPerRound] = useState('');
   const [notes, setNotes] = useState('');
   const [usedBy, setUsedBy] = useState(0);
+  const [allAmmo, setAllAmmo] = useState<Ammunition[]>([]);
   const [problem, setProblem] = useState('');
   const [confirming, setConfirming] = useState(false);
+  const [dupe, setDupe] = useState<Ammunition | null>(null);
 
   useEffect(() => {
-    if (id === undefined) return;
     let alive = true;
-    void Promise.all([getOne<Ammunition>('ammunition', id), getAll<Session>('sessions')]).then(([a, s]) => {
-      if (!alive || !a) return;
-      setOriginal(a);
-      setBrand(a.brand); setCaliber(a.caliber); setGrain(a.grain);
-      setBulletType(a.bulletType || 'FMJ');
-      setQuantity(String(a.quantity || 0));
-      setCostPerRound(a.costPerRound > 0 ? String(a.costPerRound) : '');
-      setNotes(a.notes);
-      setUsedBy(s.filter((x) => (x.ammoUsage ?? []).some((u) => u.ammoId === id)).length);
+    void getAll<Ammunition>('ammunition').then((cans) => {
+      if (alive) setAllAmmo(cans);
     });
+    if (id !== undefined) {
+      void Promise.all([getOne<Ammunition>('ammunition', id), getAll<Session>('sessions')]).then(([a, s]) => {
+        if (!alive || !a) return;
+        setOriginal(a);
+        setBrand(a.brand); setCaliber(a.caliber); setGrain(a.grain);
+        setBulletType(a.bulletType || 'FMJ');
+        setQuantity(String(a.quantity || 0));
+        setCostPerRound(a.costPerRound > 0 ? String(a.costPerRound) : '');
+        setNotes(a.notes);
+        setUsedBy(s.filter((x) => (x.ammoUsage ?? []).some((u) => u.ammoId === id)).length);
+      });
+    }
     return () => { alive = false; };
   }, [id]);
 
-  async function save() {
-    if (!brand.trim() && !caliber.trim()) { setProblem('Give it at least a brand or a caliber.'); return; }
+  const pastBrands = recentValues(allAmmo.map((a) => ({ date: String(a.updatedAt), value: a.brand })));
+  const pastCalibers = recentValues(allAmmo.map((a) => ({ date: String(a.updatedAt), value: a.caliber })));
+
+  function checkNumbers(): { qty: number; cpr: number } | null {
+    if (!brand.trim() && !caliber.trim()) { setProblem('Give it at least a brand or a caliber.'); return null; }
     const qty = quantity.trim() === '' ? 0 : Number(quantity);
     const cpr = costPerRound.trim() === '' ? 0 : Number(costPerRound);
-    if (!Number.isFinite(qty) || qty < 0) { setProblem('Rounds on hand needs to be a plain number.'); return; }
-    if (!Number.isFinite(cpr) || cpr < 0) { setProblem('Cost per round needs to be a plain number, like 0.30.'); return; }
-    const now = Date.now();
+    if (!Number.isFinite(qty) || qty < 0) { setProblem('Rounds on hand needs to be a plain number.'); return null; }
+    if (!Number.isFinite(cpr) || cpr < 0) { setProblem('Cost per round needs to be a plain number, like 0.30.'); return null; }
+    return { qty, cpr };
+  }
+
+  async function save(keepSeparate = false) {
+    const n = checkNumbers();
+    if (!n) return;
     const fields = {
       brand: brand.trim(), caliber: caliber.trim(), grain: grain.trim(),
-      bulletType, quantity: qty, costPerRound: cpr, notes: notes.trim()
+      bulletType, quantity: n.qty, costPerRound: n.cpr, notes: notes.trim()
     };
+    if (!keepSeparate) {
+      const other = findSameAmmo(allAmmo, fields, original?.id);
+      if (other) { setDupe(other); return; }
+    }
+    const now = Date.now();
     if (original) await putOne('ammunition', stampUpdate({ ...original, ...fields }, now));
     else await putOne('ammunition', stampNew(fields, newId('am'), now));
+    onSaved();
+  }
+
+  /** Pour this form's rounds into the can we already track (and, when editing,
+      move the old can's history over before removing it). */
+  async function combineInto(other: Ammunition) {
+    const n = checkNumbers();
+    if (!n) { setDupe(null); return; }
+    const now = Date.now();
+    const merged = combinedCan(other, { quantity: n.qty, costPerRound: n.cpr });
+    const extraNotes = notes.trim() && notes.trim() !== other.notes ? notes.trim() : '';
+    await putOne('ammunition', stampUpdate({
+      ...other,
+      quantity: merged.quantity,
+      costPerRound: merged.costPerRound,
+      notes: [other.notes, extraNotes].filter(Boolean).join(' · ')
+    }, now));
+    if (original) {
+      // Every session and purchase that pointed at the duplicate now points
+      // at the kept can, so history and FIFO costing survive the merge.
+      const [sessions, purchases] = await Promise.all([
+        getAll<Session>('sessions'), getAll<Purchase>('purchases')
+      ]);
+      for (const change of repointAmmoUsage(sessions, original.id, other.id)) {
+        const s = sessions.find((x) => x.id === change.id);
+        if (s) await putOne('sessions', stampUpdate({ ...s, ammoUsage: change.ammoUsage }, now));
+      }
+      for (const pid of repointPurchaseIds(purchases, original.id)) {
+        const p = purchases.find((x) => x.id === pid);
+        if (p) await putOne('purchases', stampUpdate({ ...p, ammoId: other.id }, now));
+      }
+      await deleteOne('ammunition', original.id);
+    }
     onSaved();
   }
 
@@ -144,12 +199,10 @@ export function AmmoForm({ id, onSaved, onCancel }: {
       <h1 className="large-title">{editing ? 'Edit Ammo' : 'Add Ammo'}</h1>
       {problem && <p className="form-problem">{problem}</p>}
       <div className="card">
-        <label className="field">Brand
-          <input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Blazer Brass" />
-        </label>
-        <label className="field">Caliber
-          <input value={caliber} onChange={(e) => setCaliber(e.target.value)} placeholder="9mm" />
-        </label>
+        <SuggestField label="Brand" value={brand} onChange={setBrand}
+          suggestions={pastBrands} placeholder="Blazer Brass" />
+        <SuggestField label="Caliber" value={caliber} onChange={setCaliber}
+          suggestions={pastCalibers} placeholder="9mm" />
         <label className="field">Grain
           <input type="number" inputMode="numeric" value={grain} onChange={(e) => setGrain(e.target.value)} placeholder="115" />
         </label>
@@ -158,9 +211,14 @@ export function AmmoForm({ id, onSaved, onCancel }: {
             {BULLET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </label>
-        <label className="field">Rounds on hand
+        <label className="field">{editing ? 'Rounds on hand (live count)' : 'Rounds on the shelf right now'}
           <input type="number" inputMode="numeric" min="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
         </label>
+        <p className="report-note">
+          {editing
+            ? 'This count runs itself — purchases add to it, sessions subtract. Only change it here to match a real shelf recount.'
+            : "Just the starting count. From here on, logged ammo purchases add to it and sessions subtract — you won't need to touch it again."}
+        </p>
         <label className="field">Cost per round ($, optional)
           <input type="number" inputMode="decimal" step="0.001" min="0" value={costPerRound}
             onChange={(e) => setCostPerRound(e.target.value)} placeholder="0.30" />
@@ -178,6 +236,22 @@ export function AmmoForm({ id, onSaved, onCancel }: {
         <button className="button danger" style={{ marginTop: 8 }} onClick={() => setConfirming(true)}>
           Delete Ammo
         </button>
+      )}
+      {dupe && (
+        <Sheet title="You Already Track This Ammo" onClose={() => setDupe(null)}>
+          <p className="report-note" style={{ marginBottom: 12 }}>
+            {ammoLabel(dupe)} is already on your shelf with {(dupe.quantity || 0).toLocaleString()} rounds
+            on hand. Combine the two into one can? Rounds add together, the cost per round
+            averages out, and {original ? 'every session and purchase that used this can follows along' : 'nothing else changes'}.
+          </p>
+          <button className="button" onClick={() => { setDupe(null); void combineInto(dupe); }}>
+            Combine Into One Can
+          </button>
+          <div style={{ height: 8 }} />
+          <button className="button secondary" onClick={() => { setDupe(null); void save(true); }}>
+            Keep as Separate Cans
+          </button>
+        </Sheet>
       )}
       {confirming && (
         <ConfirmSheet

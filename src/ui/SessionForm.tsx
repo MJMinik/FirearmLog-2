@@ -11,7 +11,9 @@ import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
 import { drillsForContext } from '../lib/drillFilter.ts';
 import { inventoryAfterUsageChange } from '../lib/costing.ts';
+import { recentValues } from '../lib/suggest.ts';
 import { ammoLabel } from './AmmoScreens.tsx';
+import { SuggestField } from './SuggestField.tsx';
 import { Sheet } from './Sheet.tsx';
 import { mediaUrl } from './media.ts';
 
@@ -58,6 +60,7 @@ export function SessionForm({ id, onSaved, onCancel }: {
   const [drillLib, setDrillLib] = useState<DrillDef[]>([]);
   const [ammoLib, setAmmoLib] = useState<Ammunition[]>([]);
   const [ammoRows, setAmmoRows] = useState<AmmoRow[]>([]);
+  const [pastLocations, setPastLocations] = useState<string[]>([]);
 
   const [kind, setKind] = useState('practice');
   const [date, setDate] = useState(todayKey());
@@ -80,13 +83,15 @@ export function SessionForm({ id, onSaved, onCancel }: {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [f, dl, am] = await Promise.all([
-        getAll<Firearm>('firearms'), getAll<DrillDef>('drills'), getAll<Ammunition>('ammunition')
+      const [f, dl, am, allSessions] = await Promise.all([
+        getAll<Firearm>('firearms'), getAll<DrillDef>('drills'), getAll<Ammunition>('ammunition'),
+        getAll<Session>('sessions')
       ]);
       if (!alive) return;
       setFirearms(f.sort((a, b) => a.name.localeCompare(b.name)));
       setDrillLib(dl);
       setAmmoLib(am.sort((a, b) => ammoLabel(a).localeCompare(ammoLabel(b))));
+      setPastLocations(recentValues(allSessions.map((s) => ({ date: s.date, value: s.location }))));
       if (id !== undefined) {
         const [s, allMedia, allMalfs] = await Promise.all([
           getOne<Session>('sessions', id),
@@ -267,9 +272,8 @@ export function SessionForm({ id, onSaved, onCancel }: {
         <label className="field">Date
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </label>
-        <label className="field">Where
-          <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Shoot Straight: University" />
-        </label>
+        <SuggestField label="Where" value={location} onChange={setLocation}
+          suggestions={pastLocations} placeholder="Shoot Straight: University" />
       </div>
 
       <div className="card">
@@ -299,7 +303,7 @@ export function SessionForm({ id, onSaved, onCancel }: {
           <h2>Ammo Used</h2>
           {ammoRows.map((r, i) => (
             <div className="row" key={i}>
-              <select className="category-pick" aria-label={`Ammo ${i + 1}`} value={r.ammoId}
+              <select className="category-pick ammo-pick" aria-label={`Ammo ${i + 1}`} value={r.ammoId}
                 onChange={(e) => setAmmoRows((p) => p.map((x, n) => n === i ? { ...x, ammoId: e.target.value } : x))}>
                 <option value="">Pick ammo…</option>
                 {ammoLib.map((a) => <option key={a.id} value={a.id}>{ammoLabel(a)}</option>)}
