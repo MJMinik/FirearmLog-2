@@ -7,11 +7,12 @@ import { stampUpdate } from '../lib/stamps.ts';
 import { mediaUrl } from './media.ts';
 import { Sheet, ConfirmSheet } from './Sheet.tsx';
 
-export function PhotoSheet({ media, onClose, onChanged }: {
+export function PhotoSheet({ media, onClose, onChanged, allowDelete = true }: {
   media: Media;
   onClose: () => void;
   /** Called after a save or delete; `deletedId` is set when the photo was removed. */
   onChanged: (deletedId?: string) => void;
+  allowDelete?: boolean;
 }) {
   const [name, setName] = useState(media.name);
   const [annotations, setAnnotations] = useState(media.annotations.join('\n'));
@@ -48,10 +49,14 @@ export function PhotoSheet({ media, onClose, onChanged }: {
         <textarea rows={3} value={annotations} onChange={(e) => setAnnotations(e.target.value)} />
       </label>
       <button className="button" onClick={() => void save()}>Save</button>
-      <div style={{ height: 8 }} />
-      <button className="button danger" onClick={() => setConfirming(true)}>
-        Delete {media.kind === 'video' ? 'Video' : 'Photo'}
-      </button>
+      {allowDelete && (
+        <>
+          <div style={{ height: 8 }} />
+          <button className="button danger" onClick={() => setConfirming(true)}>
+            Delete {media.kind === 'video' ? 'Video' : 'Photo'}
+          </button>
+        </>
+      )}
       {confirming && (
         <ConfirmSheet
           title={`Delete this ${media.kind}?`}

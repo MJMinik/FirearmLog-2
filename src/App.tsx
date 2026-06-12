@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { TabBar } from './ui/TabBar.tsx';
 import type { TabId } from './ui/TabBar.tsx';
 import type { View } from './ui/nav.ts';
@@ -15,130 +15,126 @@ import { DrillsScreen, DrillForm } from './ui/DrillsScreen.tsx';
 import { MagazinesScreen, MagazineForm } from './ui/MagazinesScreen.tsx';
 import { ReferenceList, ReferenceDetail, ReferenceForm } from './ui/ReferenceScreens.tsx';
 import { MaintenanceOverview, MaintenanceForm } from './ui/MaintenanceScreens.tsx';
-import { AmmoScreen, AmmoForm } from './ui/AmmoScreens.tsx';
-import { CostsScreen, PurchaseForm } from './ui/CostsScreen.tsx';
 
 export function App() {
   const [tab, setTabState] = useState<TabId>('home');
-  const [view, setView] = useState<View | null>(null);
+  const [view, setViewState] = useState<View | null>(null);
   // Bump this to make every screen re-read the database after a save/import.
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey((k) => k + 1);
-  const setTab = (t: TabId) => { setView(null); setTabState(t); };
+
+  // Views live in browser history so Back works (and never blanks the app).
+  const push = (v: View) => { history.pushState({ view: v }, ''); setViewState(v); };
+  const replace = (v: View | null) => { history.replaceState({ view: v }, ''); setViewState(v); };
+  const back = () => history.back();
+
+  useEffect(() => {
+    history.replaceState({ view: null }, '');
+    const onPop = (e: PopStateEvent) => {
+      const st = e.state as { view?: View | null } | null;
+      setViewState(st?.view ?? null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const setTab = (t: TabId) => { replace(null); setTabState(t); };
 
   let content;
   if (view?.kind === 'gun-detail') {
     const v = view;
     content = <GunDetail id={v.id} refreshKey={refreshKey}
-      onBack={() => setView(null)}
-      onEdit={() => setView({ kind: 'gun-form', id: v.id })}
-      onLogMaintenance={() => setView({ kind: 'maint-form', gunId: v.id })}
-      onOpenReference={(rid) => setView({ kind: 'reference-detail', id: rid })} />;
+      onBack={back}
+      onEdit={() => push({ kind: 'gun-form', id: v.id })}
+      onLogMaintenance={() => push({ kind: 'maint-form', gunId: v.id })}
+      onOpenReference={(rid) => push({ kind: 'reference-detail', id: rid })} />;
   } else if (view?.kind === 'gun-form') {
     const v = view;
     content = <GunForm id={v.id}
-      onCancel={() => setView(v.id !== undefined ? { kind: 'gun-detail', id: v.id } : null)}
-      onSaved={(gid) => { refresh(); setView({ kind: 'gun-detail', id: gid }); }} />;
+      onCancel={back}
+      onSaved={(gid) => { refresh(); replace({ kind: 'gun-detail', id: gid }); }} />;
   } else if (view?.kind === 'session-detail') {
     const v = view;
     content = <SessionDetail id={v.id} refreshKey={refreshKey}
-      onBack={() => setView(null)}
-      onEdit={() => setView({ kind: 'session-form', id: v.id })}
-      onDeleted={() => { refresh(); setView(null); }} />;
+      onBack={back}
+      onEdit={() => push({ kind: 'session-form', id: v.id })}
+      onDeleted={() => { refresh(); replace(null); }} />;
   } else if (view?.kind === 'session-form') {
     const v = view;
     content = <SessionForm id={v.id}
-      onCancel={() => setView(v.id !== undefined ? { kind: 'session-detail', id: v.id } : null)}
-      onSaved={(sid) => { refresh(); setView({ kind: 'session-detail', id: sid }); }} />;
+      onCancel={back}
+      onSaved={(sid) => { refresh(); replace({ kind: 'session-detail', id: sid }); }} />;
   } else if (view?.kind === 'drills') {
     content = <DrillsScreen refreshKey={refreshKey}
-      onBack={() => setView(null)}
-      openForm={(did) => setView({ kind: 'drill-form', id: did })} />;
+      onBack={back}
+      openForm={(did) => push({ kind: 'drill-form', id: did })} />;
   } else if (view?.kind === 'drill-form') {
     const v = view;
     content = <DrillForm id={v.id}
-      onCancel={() => setView({ kind: 'drills' })}
-      onSaved={() => { refresh(); setView({ kind: 'drills' }); }} />;
+      onCancel={back}
+      onSaved={() => { refresh(); replace({ kind: 'drills' }); }} />;
   } else if (view?.kind === 'magazines') {
     content = <MagazinesScreen refreshKey={refreshKey}
-      onBack={() => setView(null)}
-      openForm={(mid) => setView({ kind: 'magazine-form', id: mid })} />;
+      onBack={back}
+      openForm={(mid) => push({ kind: 'magazine-form', id: mid })} />;
   } else if (view?.kind === 'magazine-form') {
     const v = view;
     content = <MagazineForm id={v.id}
-      onCancel={() => setView({ kind: 'magazines' })}
-      onSaved={() => { refresh(); setView({ kind: 'magazines' }); }} />;
+      onCancel={back}
+      onSaved={() => { refresh(); replace({ kind: 'magazines' }); }} />;
   } else if (view?.kind === 'references') {
     content = <ReferenceList refreshKey={refreshKey}
-      onBack={() => setView(null)}
-      openDetail={(rid) => setView({ kind: 'reference-detail', id: rid })}
-      openForm={() => setView({ kind: 'reference-form' })} />;
+      onBack={back}
+      openDetail={(rid) => push({ kind: 'reference-detail', id: rid })}
+      openForm={() => push({ kind: 'reference-form' })} />;
   } else if (view?.kind === 'reference-detail') {
     const v = view;
     content = <ReferenceDetail id={v.id} refreshKey={refreshKey}
-      onBack={() => setView({ kind: 'references' })}
-      onEdit={() => setView({ kind: 'reference-form', id: v.id })}
-      onCopy={() => setView({ kind: 'reference-form', copyFrom: v.id })}
-      onDeleted={() => { refresh(); setView({ kind: 'references' }); }} />;
+      onBack={back}
+      onEdit={() => push({ kind: 'reference-form', id: v.id })}
+      onCopy={() => push({ kind: 'reference-form', copyFrom: v.id })}
+      onDeleted={() => { refresh(); replace({ kind: 'references' }); }} />;
   } else if (view?.kind === 'reference-form') {
     const v = view;
     content = <ReferenceForm id={v.id} copyFrom={v.copyFrom}
-      onCancel={() => setView(v.id !== undefined ? { kind: 'reference-detail', id: v.id } : { kind: 'references' })}
-      onSaved={(rid) => { refresh(); setView({ kind: 'reference-detail', id: rid }); }} />;
+      onCancel={back}
+      onSaved={(rid) => { refresh(); replace({ kind: 'reference-detail', id: rid }); }} />;
   } else if (view?.kind === 'maintenance') {
     content = <MaintenanceOverview refreshKey={refreshKey}
-      onBack={() => setView(null)}
-      openGun={(gid) => setView({ kind: 'gun-detail', id: gid })}
-      logFor={(gid) => setView({ kind: 'maint-form', gunId: gid })} />;
+      onBack={back}
+      openGun={(gid) => push({ kind: 'gun-detail', id: gid })}
+      logFor={(gid) => push({ kind: 'maint-form', gunId: gid })} />;
   } else if (view?.kind === 'maint-form') {
     const v = view;
     content = <MaintenanceForm gunId={v.gunId}
-      onCancel={() => setView({ kind: 'gun-detail', id: v.gunId })}
-      onSaved={() => { refresh(); setView({ kind: 'gun-detail', id: v.gunId }); }} />;
+      onCancel={back}
+      onSaved={() => { refresh(); replace({ kind: 'gun-detail', id: v.gunId }); }} />;
   } else if (view?.kind === 'match-detail') {
     const v = view;
     content = <MatchDetail id={v.id} refreshKey={refreshKey}
-      onBack={() => setView(null)}
-      onEdit={() => setView({ kind: 'match-form', id: v.id })}
-      onDeleted={() => { refresh(); setView(null); }} />;
+      onBack={back}
+      onEdit={() => push({ kind: 'match-form', id: v.id })}
+      onDeleted={() => { refresh(); replace(null); }} />;
   } else if (view?.kind === 'match-form') {
     const v = view;
     content = <MatchForm id={v.id}
-      onCancel={() => setView(v.id !== undefined ? { kind: 'match-detail', id: v.id } : null)}
-      onSaved={(mid) => { refresh(); setView({ kind: 'match-detail', id: mid }); }} />;
+      onCancel={back}
+      onSaved={(mid) => { refresh(); replace({ kind: 'match-detail', id: mid }); }} />;
   } else if (view?.kind === 'classifier-form') {
     const v = view;
     content = <ClassifierForm id={v.id}
-      onCancel={() => setView(null)}
-      onSaved={() => { refresh(); setView(null); }} />;
-  } else if (view?.kind === 'ammo') {
-    content = <AmmoScreen refreshKey={refreshKey}
-      onBack={() => setView(null)}
-      openForm={(aid) => setView({ kind: 'ammo-form', id: aid })} />;
-  } else if (view?.kind === 'ammo-form') {
-    const v = view;
-    content = <AmmoForm id={v.id}
-      onCancel={() => setView({ kind: 'ammo' })}
-      onSaved={() => { refresh(); setView({ kind: 'ammo' }); }} />;
-  } else if (view?.kind === 'costs') {
-    content = <CostsScreen refreshKey={refreshKey}
-      onBack={() => setView(null)}
-      openForm={(pid) => setView({ kind: 'purchase-form', id: pid })} />;
-  } else if (view?.kind === 'purchase-form') {
-    const v = view;
-    content = <PurchaseForm id={v.id}
-      onCancel={() => setView({ kind: 'costs' })}
-      onSaved={() => { refresh(); setView({ kind: 'costs' }); }} />;
+      onCancel={back}
+      onSaved={() => { refresh(); replace(null); }} />;
   } else if (tab === 'home') {
-    content = <HomeScreen refreshKey={refreshKey} onImported={refresh} open={setView} />;
+    content = <HomeScreen refreshKey={refreshKey} onImported={refresh} open={push} />;
   } else if (tab === 'log') {
-    content = <LogScreen refreshKey={refreshKey} open={setView} />;
+    content = <LogScreen refreshKey={refreshKey} open={push} />;
   } else if (tab === 'compete') {
-    content = <CompeteScreen refreshKey={refreshKey} open={setView} />;
+    content = <CompeteScreen refreshKey={refreshKey} open={push} />;
   } else if (tab === 'progress') {
     content = <ProgressScreen />;
   } else {
-    content = <MoreScreen refreshKey={refreshKey} onImported={refresh} open={setView} />;
+    content = <MoreScreen refreshKey={refreshKey} onImported={refresh} open={push} />;
   }
 
   return (

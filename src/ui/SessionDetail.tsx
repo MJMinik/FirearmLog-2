@@ -163,7 +163,7 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
           {Object.entries(session.selfRating).map(([k, v]) => (
             <div className="row" key={k}>
               <span className="label" style={{ textTransform: 'capitalize' }}>{k}</span>
-              <span className="value">{v} / 5</span>
+              <span className="value">{v} / 10</span>
             </div>
           ))}
         </div>

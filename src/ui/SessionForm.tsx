@@ -15,6 +15,7 @@ import { recentValues } from '../lib/suggest.ts';
 import { ammoLabel } from './AmmoScreens.tsx';
 import { SuggestField } from './SuggestField.tsx';
 import { Sheet } from './Sheet.tsx';
+import { PhotoSheet } from './PhotoSheet.tsx';
 import { mediaUrl } from './media.ts';
 
 const KINDS = [
@@ -26,6 +27,12 @@ const KINDS = [
 const MALF_TYPES = [
   'Failure to feed', 'Failure to fire', 'Failure to eject', 'Failure to extract',
   'Double feed', 'Stovepipe', 'Light strike', 'Other'
+];
+
+// PT's clearing methods, carried over verbatim.
+const CLEAR_METHODS = [
+  'Tap-Rack-Bang', 'Tap-Rack-Reassess', 'Mortar (double feed)', 'Manual clear',
+  'Disassembly required', 'Mag swap', 'Resolved itself', 'Other'
 ];
 
 interface DrillRow {
@@ -72,10 +79,13 @@ export function SessionForm({ id, onSaved, onCancel }: {
   const [existingMedia, setExistingMedia] = useState<Media[]>([]);
   const [removedMedia, setRemovedMedia] = useState<string[]>([]);
   const [newFiles, setNewFiles] = useState<NewFile[]>([]);
-  const [ratings, setRatings] = useState<Record<string, string>>({ focus: '', fundamentals: '', satisfaction: '' });
+  const [ratings, setRatings] = useState<Record<string, string>>(
+    editing ? { focus: '', fundamentals: '', satisfaction: '' } : { focus: '5', fundamentals: '5', satisfaction: '5' }
+  );
   const [rangeFee, setRangeFee] = useState('');
   const [notes, setNotes] = useState('');
   const [picking, setPicking] = useState(false);
+  const [viewing, setViewing] = useState<Media | null>(null);
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -375,9 +385,11 @@ export function SessionForm({ id, onSaved, onCancel }: {
           <div className="photo-grid" style={{ marginBottom: 12 }}>
             {visibleExisting.map((m) => (
               <div className="thumb-wrap" key={m.id}>
-                {m.kind === 'video'
-                  ? <video src={mediaUrl(m)} preload="metadata" muted playsInline />
-                  : <img src={mediaUrl(m)} alt={m.name} loading="lazy" />}
+                <button className="thumb-tap" onClick={() => setViewing(m)} aria-label={`Open ${m.name}`}>
+                  {m.kind === 'video'
+                    ? <video src={mediaUrl(m)} preload="metadata" muted playsInline />
+                    : <img src={mediaUrl(m)} alt={m.name} loading="lazy" />}
+                </button>
                 <button className="thumb-x" aria-label={`Remove ${m.name}`}
                   onClick={() => setRemovedMedia((prev) => [...prev, m.id])}>✕</button>
               </div>
@@ -396,7 +408,7 @@ export function SessionForm({ id, onSaved, onCancel }: {
         <input ref={fileRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }}
           onChange={(e) => { filesPicked(e.target.files); e.target.value = ''; }} />
         <button className="button secondary" onClick={() => fileRef.current?.click()}>+ Add Photos or Videos</button>
-        <p className="report-note">Removals only happen when you Save — Cancel really cancels.</p>
+        <p className="report-note">Tap a photo to name it or jot notes. Removals only happen when you Save — Cancel really cancels.</p>
       </div>
 
       <div className="card">
@@ -423,8 +435,11 @@ export function SessionForm({ id, onSaved, onCancel }: {
               </select>
             </label>
             <label className="field">How you cleared it
-              <input value={m.resolution}
-                onChange={(e) => setMalfs((p) => p.map((x, n) => n === i ? { ...x, resolution: e.target.value } : x))} />
+              <select value={CLEAR_METHODS.includes(m.resolution) || m.resolution === '' ? m.resolution : 'Other'}
+                onChange={(e) => setMalfs((p) => p.map((x, n) => n === i ? { ...x, resolution: e.target.value } : x))}>
+                <option value="">Pick one…</option>
+                {CLEAR_METHODS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
             </label>
             <label className="field">Notes
               <input value={m.notes}
@@ -434,19 +449,19 @@ export function SessionForm({ id, onSaved, onCancel }: {
         ))}
         <button className="button secondary" onClick={() => setMalfs((prev) => [
           ...prev,
-          { firearmId: (selectedGuns[0] ?? firearms[0])?.id ?? '', type: '', resolution: '', notes: '' }
+          { firearmId: (selectedGuns[0] ?? firearms[0])?.id ?? '', type: '', resolution: 'Tap-Rack-Bang', notes: '' }
         ])}>+ Add Malfunction</button>
       </div>
 
       <div className="card">
-        <h2>How It Felt (1–5, optional)</h2>
+        <h2>How It Felt (1–10)</h2>
         {(['focus', 'fundamentals', 'satisfaction'] as const).map((k) => (
           <div className="row" key={k}>
             <span className="label" style={{ textTransform: 'capitalize' }}>{k}</span>
             <select className="category-pick" aria-label={k} value={ratings[k]}
               onChange={(e) => setRatings((prev) => ({ ...prev, [k]: e.target.value }))}>
               <option value="">—</option>
-              {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
         ))}
@@ -466,6 +481,13 @@ export function SessionForm({ id, onSaved, onCancel }: {
         {saving ? 'Saving…' : editing ? 'Save Changes' : 'Save Session'}
       </button>
 
+      {viewing && (
+        <PhotoSheet media={viewing} allowDelete={false} onClose={() => setViewing(null)}
+          onChanged={async () => {
+            const allMedia = await getAll<Media>('media');
+            setExistingMedia(allMedia.filter((m) => m.ownerType === 'session' && m.ownerId === (original?.id ?? '')));
+          }} />
+      )}
       {picking && (
         <Sheet title="Pick a Drill" onClose={() => setPicking(false)}>
           {pickable.length === 0 && (

@@ -1,19 +1,28 @@
 // THE shared modal sheet and confirm-before-delete (rules R3/R5/A1):
 // every dialog in the app goes through these two components.
-import { useEffect } from 'react';
+// The backdrop only closes when a tap BEGINS and ENDS on it — so dragging
+// out of a text field can never throw your edits away.
+import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 
 export function Sheet({ title, onClose, children }: {
   title: string; onClose: () => void; children: ReactNode;
 }) {
+  const downOnBackdrop = useRef(false);
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+    <div className="sheet-backdrop"
+      onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget; }}
+      onTouchStart={(e) => { downOnBackdrop.current = e.target === e.currentTarget; }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && downOnBackdrop.current) onClose();
+        downOnBackdrop.current = false;
+      }}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet-head">
           <h3>{title}</h3>
           <button className="icon-btn" onClick={onClose} aria-label="Close">✕</button>

@@ -170,6 +170,7 @@ export function MatchForm({ id, onSaved, onCancel }: {
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState('');
+  const [viewingForm, setViewingForm] = useState<Media | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -380,9 +381,11 @@ export function MatchForm({ id, onSaved, onCancel }: {
           <div className="photo-grid" style={{ marginBottom: 12 }}>
             {visibleExisting.map((m) => (
               <div className="thumb-wrap" key={m.id}>
-                {m.kind === 'video'
-                  ? <video src={mediaUrl(m)} preload="metadata" muted playsInline />
-                  : <img src={mediaUrl(m)} alt={m.name} loading="lazy" />}
+                <button className="thumb-tap" onClick={() => setViewingForm(m)} aria-label={`Open ${m.name}`}>
+                  {m.kind === 'video'
+                    ? <video src={mediaUrl(m)} preload="metadata" muted playsInline />
+                    : <img src={mediaUrl(m)} alt={m.name} loading="lazy" />}
+                </button>
                 <button className="thumb-x" aria-label={`Remove ${m.name}`}
                   onClick={() => setRemovedMedia((p) => [...p, m.id])}>✕</button>
               </div>
@@ -420,6 +423,14 @@ export function MatchForm({ id, onSaved, onCancel }: {
       <button className="button" disabled={saving} onClick={() => void save()}>
         {saving ? 'Saving…' : editing ? 'Save Changes' : 'Save Match'}
       </button>
+
+      {viewingForm && (
+        <PhotoSheet media={viewingForm} allowDelete={false} onClose={() => setViewingForm(null)}
+          onChanged={async () => {
+            const allMedia = await getAll<Media>('media');
+            setExistingMedia(allMedia.filter((x) => x.ownerType === 'match' && x.ownerId === (original?.id ?? '')));
+          }} />
+      )}
     </div>
   );
 }
