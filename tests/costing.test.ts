@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ammoCurrentCostPerRound, computeFifoCosts, costTotals, firearmShare,
+  ammoCurrentCostPerRound, computeFifoCosts, costPerRoundAfterBuy, costTotals, firearmShare,
   gunSpend, inventoryAfterUsageChange, lowAmmo, matchFee, purchaseAmmoLink,
   roundsFired, sessionAmmoCost
 } from '../src/lib/costing.ts';
@@ -166,4 +166,25 @@ test('lowAmmo flags 1–50 rounds, ignores empty and healthy cans', () => {
     { id: 'c', quantity: 51, costPerRound: 0 }
   ];
   assert.deepEqual(lowAmmo(ammo).map((a) => a.id), ['b']);
+});
+
+test('costPerRoundAfterBuy: existing FIFO basis plus the new lot', () => {
+  // Can has 500 left @ $0.40 + 500 @ $0.20 (basis $300/1,000). Buy 1,000 for $200.
+  const after = costPerRoundAfterBuy('am-1', lots, [marchApril[0]], 0, 1000, 1000, 200);
+  assert.equal(after, 0.25); // ($300 + $200) / 2,000
+});
+
+test('costPerRoundAfterBuy: brand-new can is just the buy price', () => {
+  assert.equal(costPerRoundAfterBuy(null, [], [], 0, 0, 1000, 300), 0.3);
+});
+
+test('costPerRoundAfterBuy: typed flat cost covers shelf rounds when no lots exist', () => {
+  // 400 rounds on the shelf at a typed $0.25, buying 600 for $240 ($0.40).
+  const after = costPerRoundAfterBuy(null, [], [], 0.25, 400, 600, 240);
+  assert.equal(after, 0.34); // ($100 + $240) / 1,000
+});
+
+test('costPerRoundAfterBuy: nothing to price returns null', () => {
+  assert.equal(costPerRoundAfterBuy(null, [], [], 0, 0, 0, 0), null);
+  assert.equal(costPerRoundAfterBuy('am-none', [], [], 0, 500, 0, 0), null);
 });

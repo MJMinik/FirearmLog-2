@@ -160,6 +160,36 @@ export function ammoCurrentCostPerRound(
 }
 
 /**
+ * Informational preview for the Add Ammo screen: what a can's average
+ * cost/round will be after a new buy lands on it. Basis = the can's unspent
+ * FIFO lots; if it has no purchase history, the typed flat cost/round covers
+ * the rounds already on hand; then the new lot is added on top.
+ */
+export function costPerRoundAfterBuy(
+  canId: string | null,
+  purchases: CostPurchaseLike[],
+  sessions: CostSessionLike[],
+  typedCostPerRound: number,
+  onHand: number,
+  buyRounds: number,
+  buyCost: number
+): number | null {
+  let cost = 0, rounds = 0;
+  if (canId) {
+    const lots = computeFifoCosts(purchases, sessions).lotsBySku[canId] ?? [];
+    for (const lot of lots) {
+      if (lot.remaining > 0) { cost += lot.remaining * lot.unitCost; rounds += lot.remaining; }
+    }
+  }
+  if (rounds === 0 && typedCostPerRound > 0 && onHand > 0) {
+    cost = onHand * typedCostPerRound;
+    rounds = onHand;
+  }
+  if (buyRounds > 0 && buyCost > 0) { cost += buyCost; rounds += buyRounds; }
+  return rounds > 0 ? cost / rounds : null;
+}
+
+/**
  * Ammo cost of one session: FIFO when purchase lots cover it, otherwise the
  * flat cost/round typed on the ammo record (sessions that pre-date purchase
  * tracking).

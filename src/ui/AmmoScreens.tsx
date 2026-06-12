@@ -8,7 +8,7 @@ import { deleteOne, getAll, getOne, putOne } from '../lib/db.ts';
 import { todayKey } from '../lib/dates.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
-import { ammoCurrentCostPerRound, lowAmmo } from '../lib/costing.ts';
+import { ammoCurrentCostPerRound, costPerRoundAfterBuy, lowAmmo } from '../lib/costing.ts';
 import { combinedCan, findSameAmmo, repointAmmoUsage, repointPurchaseIds } from '../lib/ammoMerge.ts';
 import { recentValues } from '../lib/suggest.ts';
 import { SuggestField } from './SuggestField.tsx';
@@ -103,7 +103,9 @@ export function AmmoForm({ id, onSaved, onCancel }: {
   const [purchRounds, setPurchRounds] = useState('');
   const [purchCost, setPurchCost] = useState('');
   const [purchVendor, setPurchVendor] = useState('');
-  const [pastVendors, setPastVendors] = useState<string[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [justCounting, setJustCounting] = useState(false);
   const [problem, setProblem] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [dupe, setDupe] = useState<Ammunition | null>(null);
@@ -114,10 +116,17 @@ export function AmmoForm({ id, onSaved, onCancel }: {
       if (alive) setAllAmmo(cans);
     });
     void getAll<Purchase>('purchases').then((all) => {
-      if (alive) setPastVendors(recentValues(all.map((p) => ({ date: p.date, value: p.vendor }))));
+      if (alive) setPurchases(all);
+    });
+    void getAll<Session>('sessions').then((all) => {
+      if (!alive) return;
+      setSessions(all);
+      if (id !== undefined) {
+        setUsedBy(all.filter((x) => (x.ammoUsage ?? []).some((u) => u.ammoId === id)).length);
+      }
     });
     if (id !== undefined) {
-      void Promise.all([getOne<Ammunition>('ammunition', id), getAll<Session>('sessions')]).then(([a, s]) => {
+      void getOne<Ammunition>('ammunition', id).then((a) => {
         if (!alive || !a) return;
         setOriginal(a);
         setBrand(a.brand); setCaliber(a.caliber); setGrain(a.grain);
@@ -125,7 +134,6 @@ export function AmmoForm({ id, onSaved, onCancel }: {
         setQuantity(String(a.quantity || 0));
         setCostPerRound(a.costPerRound > 0 ? String(a.costPerRound) : '');
         setNotes(a.notes);
-        setUsedBy(s.filter((x) => (x.ammoUsage ?? []).some((u) => u.ammoId === id)).length);
       });
     }
     return () => { alive = false; };
@@ -133,20 +141,44 @@ export function AmmoForm({ id, onSaved, onCancel }: {
 
   const pastBrands = recentValues(allAmmo.map((a) => ({ date: String(a.updatedAt), value: a.brand })));
   const pastCalibers = recentValues(allAmmo.map((a) => ({ date: String(a.updatedAt), value: a.caliber })));
+  const pastVendors = recentValues(purchases.map((p) => ({ date: p.date, value: p.vendor })));
+
+  // Live "what your shelf looks like after Save" readout (informational only).
+  const match = !editing
+    ? findSameAmmo(allAmmo, { brand: brand.trim(), caliber: caliber.trim(), grain: grain.trim(), bulletType })
+    : undefined;
+  const prN = Number(purchRounds) > 0 ? Number(purchRounds) : 0;
+  const pcN = Number(purchCost) > 0 ? Number(purchCost) : 0;
+  const buying = prN > 0 && pcN > 0;
+  const qtyN = justCounting && Number(quantity) > 0 ? Number(quantity) : 0;
+  const cprN = justCounting && Number(costPerRound) > 0 ? Number(costPerRound) : 0;
+  const shelfAfter = (match?.quantity ?? 0) + qtyN + (buying ? prN : 0);
+  const costAfter = costPerRoundAfterBuy(
+    match?.id ?? null, purchases, sessions,
+    match && match.costPerRound > 0 ? match.costPerRound : cprN,
+    (match?.quantity ?? 0) + qtyN,
+    buying ? prN : 0, buying ? pcN : 0
+  );
 
   function checkNumbers(): { qty: number; cpr: number; pr: number; pc: number } | null {
     if (!brand.trim() && !caliber.trim()) { setProblem('Give it at least a brand or a caliber.'); return null; }
-    const qty = quantity.trim() === '' ? 0 : Number(quantity);
-    const cpr = costPerRound.trim() === '' ? 0 : Number(costPerRound);
+    // On Add, the shelf-count fields only exist when "just counting" is open.
+    const counting = editing || justCounting;
+    const qty = !counting || quantity.trim() === '' ? 0 : Number(quantity);
+    const cpr = !counting || costPerRound.trim() === '' ? 0 : Number(costPerRound);
     const pr = purchRounds.trim() === '' ? 0 : Number(purchRounds);
     const pc = purchCost.trim() === '' ? 0 : Number(purchCost);
     if (!Number.isFinite(qty) || qty < 0) { setProblem('Rounds on the shelf needs to be a plain number.'); return null; }
     if (!Number.isFinite(cpr) || cpr < 0) { setProblem('Cost per round needs to be a plain number, like 0.30.'); return null; }
     if (!Number.isFinite(pr) || pr < 0 || !Number.isFinite(pc) || pc < 0) {
-      setProblem('Purchase rounds and price need to be plain numbers.'); return null;
+      setProblem('The buy needs plain numbers for rounds and price.'); return null;
     }
     if ((pr > 0) !== (pc > 0)) {
-      setProblem('For the purchase, fill in both the rounds and what you paid — or leave both blank.'); return null;
+      setProblem('Fill in both the rounds and what you paid for the buy.'); return null;
+    }
+    if (!editing && !justCounting && !(pr > 0)) {
+      setProblem('Fill in the buy — rounds and what you paid. Not buying? Tap "Just counting the shelf" below.');
+      return null;
     }
     return { qty, cpr, pr, pc };
   }
@@ -244,46 +276,101 @@ export function AmmoForm({ id, onSaved, onCancel }: {
             {BULLET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </label>
-        <label className="field">{editing ? 'Rounds on hand (live count)' : 'Rounds on the shelf right now'}
-          <input type="number" inputMode="numeric" min="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-        </label>
-        <p className="report-note">
-          {editing
-            ? 'This count runs itself — purchases add to it, sessions subtract. Only change it here to match a real shelf recount.'
-            : "Just the starting count. From here on, logged ammo purchases add to it and sessions subtract — you won't need to touch it again."}
-        </p>
-        <label className="field">Cost per round ($, optional)
-          <input type="number" inputMode="decimal" step="0.001" min="0" value={costPerRound}
-            onChange={(e) => setCostPerRound(e.target.value)} placeholder="0.30" />
-        </label>
-        <p className="report-note">
-          Only needed for sessions older than your purchase history — once you log
-          ammo purchases, FirearmLog works out the real cost per round on its own.
-        </p>
-        <label className="field">Notes
-          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </label>
+        {editing && (
+          <>
+            <label className="field">Rounds on hand (live count)
+              <input type="number" inputMode="numeric" min="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+            </label>
+            <p className="report-note">
+              This count runs itself — purchases add to it, sessions subtract. Only change it here to match a real shelf recount.
+            </p>
+            <label className="field">Cost per round ($, optional)
+              <input type="number" inputMode="decimal" step="0.001" min="0" value={costPerRound}
+                onChange={(e) => setCostPerRound(e.target.value)} placeholder="0.30" />
+            </label>
+            <p className="report-note">
+              Only needed for sessions older than your purchase history — once you log
+              ammo purchases, FirearmLog works out the real cost per round on its own.
+            </p>
+            <label className="field">Notes
+              <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </label>
+          </>
+        )}
       </div>
 
       {!editing && (
-        <div className="card">
-          <h2>Buying It Now? (optional)</h2>
-          <label className="field">Rounds purchased
-            <input type="number" inputMode="numeric" min="0" value={purchRounds}
-              onChange={(e) => setPurchRounds(e.target.value)} placeholder="1000" />
-          </label>
-          <label className="field">What you paid, total ($)
-            <input type="number" inputMode="decimal" min="0" step="0.01" value={purchCost}
-              onChange={(e) => setPurchCost(e.target.value)} placeholder="299.99" />
-          </label>
-          <SuggestField label="Vendor (optional)" value={purchVendor} onChange={setPurchVendor}
-            suggestions={pastVendors} placeholder="Primary Arms" />
-          <p className="report-note">
-            One Save does it all: this logs the purchase under Costs &amp; Purchases, puts these
-            rounds on the shelf, and prices every round you shoot from it. Don't also count
-            them in the shelf number above.
-          </p>
-        </div>
+        <>
+          <div className="card">
+            <h2>The Buy</h2>
+            <label className="field">Rounds purchased
+              <input type="number" inputMode="numeric" min="0" value={purchRounds}
+                onChange={(e) => setPurchRounds(e.target.value)} placeholder="1000" />
+            </label>
+            <label className="field">What you paid, total ($)
+              <input type="number" inputMode="decimal" min="0" step="0.01" value={purchCost}
+                onChange={(e) => setPurchCost(e.target.value)} placeholder="299.99" />
+            </label>
+            <SuggestField label="Vendor (optional)" value={purchVendor} onChange={setPurchVendor}
+              suggestions={pastVendors} placeholder="Primary Arms" />
+            <p className="report-note">
+              One Save does it all: the buy lands under Costs &amp; Purchases, the rounds go
+              on the shelf, and every round you shoot from this can gets priced from your
+              buys, oldest first.
+            </p>
+          </div>
+
+          <div className="card">
+            <h2>On the Shelf After Saving</h2>
+            {match && (
+              <p className="report-note" style={{ marginTop: 0 }}>
+                This is the {ammoLabel(match)} can you already track
+                ({(match.quantity || 0).toLocaleString()} rounds on hand) — Save will
+                offer to put this buy on it.
+              </p>
+            )}
+            <div className="row">
+              <span className="label">Rounds on the shelf</span>
+              <span className="value">{shelfAfter.toLocaleString()}</span>
+            </div>
+            <div className="row">
+              <span className="label">Average cost per round</span>
+              <span className="value">{costAfter !== null ? `$${costAfter.toFixed(3)}` : '—'}</span>
+            </div>
+            <p className="report-note">
+              These two run themselves from here on — buys add to the shelf, logged
+              sessions subtract, and the cost averages across what's left.
+            </p>
+          </div>
+
+          <div className="card">
+            <button className={`gun-toggle ${justCounting ? 'on' : ''}`} aria-pressed={justCounting}
+              onClick={() => setJustCounting(!justCounting)}>
+              Just counting the shelf — no buy to log
+            </button>
+            {justCounting && (
+              <>
+                <label className="field" style={{ marginTop: 8 }}>Rounds on the shelf right now
+                  <input type="number" inputMode="numeric" min="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                </label>
+                <label className="field">Cost per round ($, optional)
+                  <input type="number" inputMode="decimal" step="0.001" min="0" value={costPerRound}
+                    onChange={(e) => setCostPerRound(e.target.value)} placeholder="0.30" />
+                </label>
+                <p className="report-note">
+                  For ammo you already own — bought before you started tracking. The
+                  cost is only used for sessions older than your purchase history.
+                </p>
+              </>
+            )}
+          </div>
+
+          <div className="card">
+            <label className="field">Notes
+              <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </label>
+          </div>
+        </>
       )}
 
       <button className="button" onClick={() => void save()}>{editing ? 'Save Changes' : 'Save Ammo'}</button>
