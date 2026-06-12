@@ -15,6 +15,8 @@ import { DrillsScreen, DrillForm } from './ui/DrillsScreen.tsx';
 import { MagazinesScreen, MagazineForm } from './ui/MagazinesScreen.tsx';
 import { ReferenceList, ReferenceDetail, ReferenceForm } from './ui/ReferenceScreens.tsx';
 import { MaintenanceOverview, MaintenanceForm } from './ui/MaintenanceScreens.tsx';
+import { AmmoScreen, AmmoForm } from './ui/AmmoScreens.tsx';
+import { CostsScreen, PurchaseForm } from './ui/CostsScreen.tsx';
 
 export function App() {
   const [tab, setTabState] = useState<TabId>('home');
@@ -120,6 +122,24 @@ export function App() {
     content = <MatchForm id={v.id}
       onCancel={back}
       onSaved={(mid) => { refresh(); replace({ kind: 'match-detail', id: mid }); }} />;
+  } else if (view?.kind === 'ammo') {
+    content = <AmmoScreen refreshKey={refreshKey}
+      onBack={back}
+      openForm={(aid) => push({ kind: 'ammo-form', id: aid })} />;
+  } else if (view?.kind === 'ammo-form') {
+    const v = view;
+    content = <AmmoForm id={v.id}
+      onCancel={back}
+      onSaved={() => { refresh(); replace({ kind: 'ammo' }); }} />;
+  } else if (view?.kind === 'costs') {
+    content = <CostsScreen refreshKey={refreshKey}
+      onBack={back}
+      openForm={(pid) => push({ kind: 'purchase-form', id: pid })} />;
+  } else if (view?.kind === 'purchase-form') {
+    const v = view;
+    content = <PurchaseForm id={v.id}
+      onCancel={back}
+      onSaved={() => { refresh(); replace({ kind: 'costs' }); }} />;
   } else if (view?.kind === 'classifier-form') {
     const v = view;
     content = <ClassifierForm id={v.id}

@@ -72,6 +72,10 @@ export function SessionForm({ id, onSaved, onCancel }: {
   const [kind, setKind] = useState('practice');
   const [date, setDate] = useState(todayKey());
   const [location, setLocation] = useState('');
+  const [planned, setPlanned] = useState(false);
+  const [instructors, setInstructors] = useState<string[]>([]);
+  const [instructor, setInstructor] = useState('');
+  const [newInstructor, setNewInstructor] = useState('');
   const [rounds, setRounds] = useState<Record<string, string>>({});
   const [drills, setDrills] = useState<DrillRow[]>([]);
   const [malfs, setMalfs] = useState<MalfRow[]>([]);
@@ -102,6 +106,8 @@ export function SessionForm({ id, onSaved, onCancel }: {
       setDrillLib(dl);
       setAmmoLib(am.sort((a, b) => ammoLabel(a).localeCompare(ammoLabel(b))));
       setPastLocations(recentValues(allSessions.map((s) => ({ date: s.date, value: s.location }))));
+      const instructorRow = await getOne<{ key: string; value: string[] }>('meta', 'instructors');
+      if (alive) setInstructors(instructorRow?.value ?? []);
       if (id !== undefined) {
         const [s, allMedia, allMalfs] = await Promise.all([
           getOne<Session>('sessions', id),
@@ -111,6 +117,8 @@ export function SessionForm({ id, onSaved, onCancel }: {
         if (!alive || !s) return;
         setOriginal(s);
         setKind(s.type); setDate(s.date); setLocation(s.location);
+        setPlanned(s.planned);
+        setInstructor(s.instructor ?? '');
         const r: Record<string, string> = {};
         for (const g of s.guns) r[g.firearmId] = String(g.rounds);
         setRounds(r);
@@ -205,26 +213,34 @@ export function SessionForm({ id, onSaved, onCancel }: {
     try {
       const sid = original ? original.id : newId('se');
       const now = Date.now();
+      const finalInstructor = kind === 'class' ? (newInstructor.trim() || instructor.trim()) : '';
       const fields = {
         date, type: kind, guns, location: location.trim(), notes: notes.trim(),
-        drills: drills.map(fromRow), selfRating, rangeFee: fee, ammoUsage
+        drills: drills.map(fromRow), selfRating, rangeFee: fee, ammoUsage,
+        planned, instructor: finalInstructor || null
       };
       if (original) {
         await putOne('sessions', stampUpdate({ ...original, ...fields }, now));
       } else {
         await putOne('sessions', stampNew({
           ...fields, distances: '', targetMediaIds: [],
-          malfunctions: [], planned: false, checklist: null
+          malfunctions: [], checklist: null
         }, sid, now));
+      }
+      if (finalInstructor && !instructors.includes(finalInstructor)) {
+        await putOne('meta', { key: 'instructors', value: [...instructors, finalInstructor].sort() });
       }
 
       // Ammo comes off the cans — only the CHANGE, so edits never double-deduct.
-      if (!original?.planned) {
-        const changes = inventoryAfterUsageChange(ammoLib, original?.ammoUsage ?? [], ammoUsage);
-        for (const [ammoId, quantity] of changes) {
-          const can = ammoLib.find((a) => a.id === ammoId);
-          if (can) await putOne('ammunition', stampUpdate({ ...can, quantity }, now));
-        }
+      // Planned sessions never move stock: their usage baseline/target is empty,
+      // so marking a planned session as shot deducts exactly once, and flipping
+      // a real session back to planned returns the rounds.
+      const baselineUsage = original && !original.planned ? (original.ammoUsage ?? []) : [];
+      const targetUsage = planned ? [] : ammoUsage;
+      const changes = inventoryAfterUsageChange(ammoLib, baselineUsage, targetUsage);
+      for (const [ammoId, quantity] of changes) {
+        const can = ammoLib.find((a) => a.id === ammoId);
+        if (can) await putOne('ammunition', stampUpdate({ ...can, quantity }, now));
       }
 
       // Staged photo/video changes commit only now (rule F3).
@@ -284,6 +300,25 @@ export function SessionForm({ id, onSaved, onCancel }: {
         </label>
         <SuggestField label="Where" value={location} onChange={setLocation}
           suggestions={pastLocations} placeholder="Shoot Straight: University" />
+        {kind === 'class' && (
+          <>
+            <label className="field">Instructor
+              <select value={instructor} onChange={(e) => { setInstructor(e.target.value); setNewInstructor(''); }}>
+                <option value="">—</option>
+                {instructors.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <label className="field">…or add a new instructor
+              <input value={newInstructor} onChange={(e) => setNewInstructor(e.target.value)} placeholder="Ben Stoeger" />
+            </label>
+          </>
+        )}
+        <div className="row">
+          <button className={`gun-toggle ${planned ? 'on' : ''}`} aria-pressed={planned}
+            onClick={() => setPlanned(!planned)}>
+            Planned session (hasn't happened yet — nothing counts until it does)
+          </button>
+        </div>
       </div>
 
       <div className="card">
@@ -298,7 +333,7 @@ export function SessionForm({ id, onSaved, onCancel }: {
               </button>
               {on && (
                 <input className="rounds-input" type="number" inputMode="numeric" min="0"
-                  placeholder={kind === 'dry_fire' ? 'reps' : 'rounds'}
+                  placeholder={planned ? 'planned rounds' : kind === 'dry_fire' ? 'reps' : 'rounds'}
                   aria-label={`Rounds for ${f.name}`}
                   value={rounds[f.id]}
                   onChange={(e) => setRounds((prev) => ({ ...prev, [f.id]: e.target.value }))} />

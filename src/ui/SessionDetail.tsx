@@ -80,7 +80,8 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
 
       <div className="card">
         <h2>Session</h2>
-        <div className="row"><span className="label">Kind</span><span className="value">{TYPE_LABEL[session.type] ?? session.type}</span></div>
+        <div className="row"><span className="label">Kind</span><span className="value">{TYPE_LABEL[session.type] ?? session.type}{session.planned ? ' · planned' : ''}</span></div>
+        {session.instructor && <div className="row"><span className="label">Instructor</span><span className="value">{session.instructor}</span></div>}
         {session.location && <div className="row"><span className="label">Where</span><span className="value">{session.location}</span></div>}
         <div className="row">
           <span className="label">{session.type === 'dry_fire' ? 'Dry-fire reps' : 'Rounds'}</span>
