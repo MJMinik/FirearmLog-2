@@ -142,8 +142,10 @@ export function LogScreen({ refreshKey, open }: { refreshKey: number; open: (v: 
   for (const s of sessions) {
     if (!s.date) continue;
     const names = s.guns.map((g) => firearms.find((f) => f.id === g.firearmId)?.name ?? '—').join(', ');
+    const kind = s.type === 'dry_fire' ? 'dry' as const : s.type === 'class' ? 'class' as const : 'practice' as const;
+    const kindLabel = s.type === 'dry_fire' ? 'Dry fire' : s.type === 'class' ? 'Class' : 'Practice';
     const list = calItems.get(s.date) ?? [];
-    list.push({ kind: 'session', id: s.id, label: `Session — ${names}`, sub: `${sessionRounds(s).toLocaleString()} rounds` });
+    list.push({ kind, id: s.id, label: `${kindLabel}${s.planned ? ' (planned)' : ''} — ${names}`, sub: `${sessionRounds(s).toLocaleString()} rounds` });
     calItems.set(s.date, list);
   }
   for (const m of matches) {
@@ -165,9 +167,9 @@ export function LogScreen({ refreshKey, open }: { refreshKey: number; open: (v: 
       </div>
       {mode === 'calendar' ? (
         <MonthCalendar items={calItems}
-          onOpen={(it) => open(it.kind === 'session'
-            ? { kind: 'session-detail', id: it.id }
-            : { kind: 'match-detail', id: it.id })} />
+          onOpen={(it) => open(it.kind === 'match'
+            ? { kind: 'match-detail', id: it.id }
+            : { kind: 'session-detail', id: it.id })} />
       ) : sessions.length === 0 ? (
         <p className="empty">Nothing logged yet. Tap "Log Session" after your next range trip, or import your Pistol Tracker data from the Home screen.</p>
       ) : (

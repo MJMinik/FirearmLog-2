@@ -313,7 +313,9 @@ a.button { text-decoration: none; }
 .cal-cell.busy { font-weight: 600; }
 .cal-dots { display: flex; gap: 3px; min-height: 6px; }
 .dot { width: 6px; height: 6px; border-radius: 50%; }
-.dot.session { background: var(--accent); }
+.dot.practice { background: var(--accent); }
+.dot.dry { background: var(--text-dim); }
+.dot.class { background: var(--success); }
 .dot.match { background: var(--warn); }
 
 /* ---------- M6.1: type-ahead suggestions ---------- */

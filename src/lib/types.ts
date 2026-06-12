@@ -69,6 +69,7 @@ export interface Session extends BaseRecord, Imported {
   selfRating: Record<string, number> | null;
   rangeFee: number | null; // first-class cost source (spec §12.2)
   planned: boolean;
+  instructor?: string | null; // for Class sessions
   checklist: unknown | null;
 }
 

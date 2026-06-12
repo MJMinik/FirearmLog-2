@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { dayKey } from '../lib/dates.ts';
 import { Sheet } from './Sheet.tsx';
 
-export interface CalItem { kind: 'session' | 'match'; id: string; label: string; sub: string; }
+export interface CalItem { kind: 'practice' | 'dry' | 'class' | 'match'; id: string; label: string; sub: string; }
 
 export function MonthCalendar({ items, onOpen }: {
   items: Map<string, CalItem[]>; onOpen: (it: CalItem) => void;
@@ -59,7 +59,9 @@ export function MonthCalendar({ items, onOpen }: {
               aria-label={`${key}: ${list.length} item${list.length !== 1 ? 's' : ''}`}>
               <span>{d}</span>
               <span className="cal-dots">
-                {list.some((x) => x.kind === 'session') && <span className="dot session" />}
+                {list.some((x) => x.kind === 'practice') && <span className="dot practice" />}
+                {list.some((x) => x.kind === 'dry') && <span className="dot dry" />}
+                {list.some((x) => x.kind === 'class') && <span className="dot class" />}
                 {list.some((x) => x.kind === 'match') && <span className="dot match" />}
               </span>
             </button>
@@ -67,8 +69,10 @@ export function MonthCalendar({ items, onOpen }: {
         })}
       </div>
       <p className="report-note" style={{ marginTop: 8 }}>
-        <span className="dot session" style={{ display: 'inline-block', verticalAlign: 'middle' }} /> sessions ·{' '}
-        <span className="dot match" style={{ display: 'inline-block', verticalAlign: 'middle' }} /> matches
+        <span className="dot practice" style={{ display: 'inline-block', verticalAlign: 'middle' }} /> practice ·{' '}
+        <span className="dot dry" style={{ display: 'inline-block', verticalAlign: 'middle' }} /> dry fire ·{' '}
+        <span className="dot class" style={{ display: 'inline-block', verticalAlign: 'middle' }} /> class ·{' '}
+        <span className="dot match" style={{ display: 'inline-block', verticalAlign: 'middle' }} /> match
       </p>
       {daySheet && (
         <Sheet title="That Day" onClose={() => setDaySheet(null)}>
