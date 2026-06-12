@@ -340,3 +340,15 @@ select { max-width: 100%; min-width: 0; }
 .screen { overflow-x: hidden; }
 /* Session form ammo rows: dropdown shares the row with the rounds box. */
 .ammo-pick { flex: 1; min-width: 0; }
+
+/* ---------- B6: Search & Filter (the C4 standard component starts here) ---------- */
+.filter-bar { display: flex; gap: 8px; margin-top: 12px; }
+.filter-bar .button { flex: 1; }
+.field-row { display: flex; gap: 8px; }
+.field-row .button { flex: 1; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.chip {
+  background: var(--bg); color: var(--text); border: 0.5px solid var(--separator);
+  border-radius: 18px; min-height: 44px; padding: 8px 16px; font-size: 15px; cursor: pointer;
+}
+.chip.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }

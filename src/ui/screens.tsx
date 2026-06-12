@@ -13,6 +13,9 @@ import { ImportFlow } from './ImportFlow.tsx';
 import { SyncCard } from './SyncCard.tsx';
 import { MonthCalendar } from './Calendar.tsx';
 import type { CalItem } from './Calendar.tsx';
+import { LogFilterBar } from './FilterBar.tsx';
+import { emptyLogFilter, matchMatchesFilter, sessionKind, sessionMatchesFilter } from '../lib/searchFilter.ts';
+import type { LogFilter } from '../lib/searchFilter.ts';
 import type { View } from './nav.ts';
 
 function useData(refreshKey: number) {
@@ -136,19 +139,24 @@ export function HomeScreen({ refreshKey, onImported, open }: {
 export function LogScreen({ refreshKey, open }: { refreshKey: number; open: (v: View) => void }) {
   const { firearms, sessions, matches, loaded } = useData(refreshKey);
   const [mode, setMode] = useState<'list' | 'calendar'>('list');
+  const [filter, setFilter] = useState<LogFilter>(emptyLogFilter());
   if (!loaded) return <div className="screen" />;
 
+  // B6: one filter rules both the list and the calendar.
+  const shownSessions = sessions.filter((s) => sessionMatchesFilter(s, filter, firearms));
+  const shownMatches = matches.filter((m) => matchMatchesFilter(m, filter, firearms));
+
   const calItems = new Map<string, CalItem[]>();
-  for (const s of sessions) {
+  for (const s of shownSessions) {
     if (!s.date) continue;
     const names = s.guns.map((g) => firearms.find((f) => f.id === g.firearmId)?.name ?? '—').join(', ');
-    const kind = s.type === 'dry_fire' ? 'dry' as const : s.type === 'class' ? 'class' as const : 'practice' as const;
-    const kindLabel = s.type === 'dry_fire' ? 'Dry fire' : s.type === 'class' ? 'Class' : 'Practice';
+    const kind = sessionKind(s.type);
+    const kindLabel = kind === 'dry' ? 'Dry fire' : kind === 'class' ? 'Class' : 'Practice';
     const list = calItems.get(s.date) ?? [];
     list.push({ kind, id: s.id, label: `${kindLabel}${s.planned ? ' (planned)' : ''} — ${names}`, sub: `${sessionRounds(s).toLocaleString()} rounds` });
     calItems.set(s.date, list);
   }
-  for (const m of matches) {
+  for (const m of shownMatches) {
     if (!m.date) continue;
     const list = calItems.get(m.date) ?? [];
     list.push({ kind: 'match', id: m.id, label: m.name || 'Match', sub: `${m.matchType ?? 'Match'} · ${m.division ?? ''}` });
@@ -158,7 +166,15 @@ export function LogScreen({ refreshKey, open }: { refreshKey: number; open: (v: 
   return (
     <div className="screen">
       <h1 className="large-title">Log</h1>
+      <p className="report-note" style={{ marginTop: -8, marginBottom: 12 }}>
+        Your training record: live practice, dry fire, classes, and planned range
+        trips — with rounds, drills, ammo used, malfunctions, photos, and how it felt.
+        Matches and classifiers live in the Compete tab; they show up here on the calendar.
+      </p>
       <button className="button" onClick={() => open({ kind: 'session-form' })}>+ Log Session</button>
+      <LogFilterBar value={filter} onChange={setFilter} firearms={firearms}
+        shown={shownSessions.length + shownMatches.length}
+        total={sessions.length + matches.length} />
       <div className="seg" role="radiogroup" aria-label="View" style={{ marginTop: 12 }}>
         <button role="radio" aria-checked={mode === 'list'} className={mode === 'list' ? 'on' : ''}
           onClick={() => setMode('list')}>List</button>
@@ -172,10 +188,12 @@ export function LogScreen({ refreshKey, open }: { refreshKey: number; open: (v: 
             : { kind: 'session-detail', id: it.id })} />
       ) : sessions.length === 0 ? (
         <p className="empty">Nothing logged yet. Tap "Log Session" after your next range trip, or import your Pistol Tracker data from the Home screen.</p>
+      ) : shownSessions.length === 0 ? (
+        <p className="empty">Nothing matches your search. Tap Clear to see everything again{shownMatches.length > 0 ? ', or flip to Calendar — your matches are there' : ''}.</p>
       ) : (
         <div className="card">
-          <h2>All Sessions</h2>
-          {sessions.map((s) => (
+          <h2>{shownSessions.length === sessions.length ? 'All Sessions' : 'Matching Sessions'}</h2>
+          {shownSessions.map((s) => (
             <SessionRow key={s.id} s={s} firearms={firearms}
               onTap={() => open({ kind: 'session-detail', id: s.id })} />
           ))}
