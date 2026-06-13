@@ -84,46 +84,54 @@ function RoundsByMonthChart({ buckets }: { buckets: MonthBucket[] }) {
   const gap = 4;
   const w = buckets.length * (barW + gap) - gap;
   const h = 140;
+  const axisW = 14; // left margin for the rotated "Rounds fired" axis label
+
+  // With a lot of months, showing every label crowds them together —
+  // thin them out so at most ~12 are drawn, evenly spaced.
+  const labelStep = buckets.length > 12 ? Math.ceil(buckets.length / 12) : 1;
 
   return (
-    <svg viewBox={`0 0 ${w} ${h + 28}`} width="100%" style={{ display: 'block', marginTop: 8 }}
+    <svg viewBox={`0 0 ${w + axisW} ${h + 28}`} width="100%" style={{ display: 'block', marginTop: 8 }}
       role="img" aria-label="Rounds by month bar chart">
-      {buckets.map((b, i) => {
-        const x = i * (barW + gap);
-        const liveH = (b.liveRounds / max) * h;
-        const matchH = (b.matchRounds / max) * h;
-        const dryH = (b.dryReps / max) * h;
-        const totalH = liveH + matchH + dryH;
-        return (
-          <g key={b.key}>
-            {/* Live rounds */}
-            <rect x={x} y={h - totalH} width={barW} height={liveH}
-              rx={2} fill="var(--accent)" />
-            {/* Match rounds stacked on top */}
-            {matchH > 0 && (
-              <rect x={x} y={h - matchH - dryH} width={barW} height={matchH}
-                rx={2} fill="var(--warn)" />
-            )}
-            {/* Dry fire reps on top */}
-            {dryH > 0 && (
-              <rect x={x} y={h - dryH} width={barW} height={dryH}
-                rx={2} fill="var(--text-dim)" opacity={0.4} />
-            )}
-            {/* Month label */}
-            <text x={x + barW / 2} y={h + 14} textAnchor="middle"
-              fill="var(--text-dim)" fontSize="9" fontFamily="inherit">
-              {b.label.split(' ')[0]}
-            </text>
-            {/* Total above bar */}
-            {b.total > 0 && (
-              <text x={x + barW / 2} y={h - totalH - 3} textAnchor="middle"
-                fill="var(--text-dim)" fontSize="8" fontFamily="inherit">
-                {b.total >= 1000 ? `${(b.total / 1000).toFixed(1)}k` : b.total}
-              </text>
-            )}
-          </g>
-        );
-      })}
+      {/* Vertical axis label */}
+      <text x={10} y={h / 2} textAnchor="middle"
+        fill="var(--text-dim)" fontSize="9" fontFamily="inherit"
+        transform={`rotate(-90 10 ${h / 2})`}>
+        Rounds fired
+      </text>
+      <g transform={`translate(${axisW},0)`}>
+        {buckets.map((b, i) => {
+          const x = i * (barW + gap);
+          const liveH = (b.liveRounds / max) * h;
+          const matchH = (b.matchRounds / max) * h;
+          const dryH = (b.dryReps / max) * h;
+          const totalH = liveH + matchH + dryH;
+          return (
+            <g key={b.key}>
+              {/* Live rounds */}
+              <rect x={x} y={h - totalH} width={barW} height={liveH}
+                rx={2} fill="var(--accent)" />
+              {/* Match rounds stacked on top */}
+              {matchH > 0 && (
+                <rect x={x} y={h - matchH - dryH} width={barW} height={matchH}
+                  rx={2} fill="var(--warn)" />
+              )}
+              {/* Dry fire reps on top */}
+              {dryH > 0 && (
+                <rect x={x} y={h - dryH} width={barW} height={dryH}
+                  rx={2} fill="var(--text-dim)" opacity={0.4} />
+              )}
+              {/* Month label (thinned out when there are many months) */}
+              {i % labelStep === 0 && (
+                <text x={x + barW / 2} y={h + 14} textAnchor="middle"
+                  fill="var(--text-dim)" fontSize="9" fontFamily="inherit">
+                  {b.label.split(' ')[0]}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </g>
     </svg>
   );
 }
