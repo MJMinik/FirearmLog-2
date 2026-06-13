@@ -64,8 +64,8 @@ const fromRow = (r: DrillRow): DrillResult => ({
   notes: r.notes.trim()
 });
 
-export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
-  id?: string; initialPlanned?: boolean; onSaved: (sessionId: string) => void; onCancel: () => void;
+export function SessionForm({ id, initialPlanned, convert, onSaved, onCancel }: {
+  id?: string; initialPlanned?: boolean; convert?: boolean; onSaved: (sessionId: string) => void; onCancel: () => void;
 }) {
   const editing = id !== undefined;
   const [original, setOriginal] = useState<Session | null>(null);
@@ -134,7 +134,9 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
         if (!alive || !s) return;
         setOriginal(s);
         setKind(s.type); setDate(s.date); setLocation(s.location);
-        setPlanned(s.planned);
+        // Converting a plan to a logged session: start unplanned so save()
+        // deducts ammo and the form behaves like logging a real session.
+        setPlanned(convert ? false : s.planned);
         setInstructor(s.instructor ?? '');
         const r: Record<string, string> = {};
         for (const g of s.guns) r[g.firearmId] = String(g.rounds);
@@ -158,7 +160,7 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
       }
     })();
     return () => { alive = false; };
-  }, [editing, id]);
+  }, [editing, id, convert]);
 
   const selectedGuns = useMemo(
     () => firearms.filter((f) => rounds[f.id] !== undefined),
@@ -182,6 +184,14 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
       else next[fid] = '';
       return next;
     });
+  }
+
+  // Checking "take" for a firearm in the Gear Checklist also selects it in
+  // Guns & Rounds (so it counts toward "Pick at least one gun" and gets a
+  // rounds field). Unchecking "take" leaves Guns & Rounds alone, so any
+  // rounds already entered there aren't lost.
+  function addGunFromChecklist(fid: string) {
+    setRounds((prev) => (prev[fid] !== undefined ? prev : { ...prev, [fid]: '' }));
   }
 
   const checklistProgressInfo = useMemo(
@@ -368,7 +378,7 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
-      <h1 className="large-title">{editing ? 'Edit Session' : planned ? 'Plan Session' : 'Log Session'}</h1>
+      <h1 className="large-title">{convert ? 'Log Session (from Plan)' : editing ? 'Edit Session' : planned ? 'Plan Session' : 'Log Session'}</h1>
       {problem && <p className="form-problem">{problem}</p>}
 
       <div className="card">
@@ -433,7 +443,7 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
         <button className="checklist-disclosure" aria-expanded={checklistOpen}
           onClick={() => setChecklistOpen((v) => !v)}>
           <span className="checklist-disclosure-title">Gear Checklist</span>
-          <span className="checklist-disclosure-arrow">{checklistOpen ? '▾' : '▸'}</span>
+          <span className="checklist-disclosure-toggle">{checklistOpen ? 'Hide ▾' : 'Show ▸'}</span>
         </button>
         {checklistProgressInfo.toTake > 0 && (
           <>
@@ -462,7 +472,10 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
                     <div className="checklist-item" key={f.id}>
                       <label className="checklist-take">
                         <input type="checkbox" checked={!!state.take}
-                          onChange={(e) => setChecklist((cl) => setItemTake(cl, itemId, e.target.checked))} />
+                          onChange={(e) => {
+                            setChecklist((cl) => setItemTake(cl, itemId, e.target.checked));
+                            if (e.target.checked) addGunFromChecklist(f.id);
+                          }} />
                         {f.name}
                       </label>
                       {state.take && (
@@ -677,7 +690,7 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
       </div>
 
       <button className="button" disabled={saving} onClick={() => void save()}>
-        {saving ? 'Saving…' : editing ? 'Save Changes' : 'Save Session'}
+        {saving ? 'Saving…' : convert ? 'Log Session' : editing ? 'Save Changes' : 'Save Session'}
       </button>
 
       {viewing && (

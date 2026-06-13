@@ -63,12 +63,13 @@ export function App() {
     content = <SessionDetail id={v.id} refreshKey={refreshKey}
       onBack={back}
       onEdit={() => push({ kind: 'session-form', id: v.id })}
+      onConvert={() => push({ kind: 'session-form', id: v.id, convert: true })}
       onDeleted={() => { refresh(); replace(null); }} />;
   } else if (view?.kind === 'session-form') {
     const v = view;
-    content = <SessionForm id={v.id} initialPlanned={v.planned}
+    content = <SessionForm id={v.id} initialPlanned={v.planned} convert={v.convert}
       onCancel={back}
-      onSaved={(sid) => { refresh(); replace({ kind: 'session-detail', id: sid }); }} />;
+      onSaved={() => { refresh(); setTab('log'); }} />;
   } else if (view?.kind === 'drills') {
     content = <DrillsScreen refreshKey={refreshKey}
       onBack={back}

@@ -125,6 +125,7 @@ input, select, textarea, button { font-size: 16px; font-family: inherit; }
 .badge { font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 8px; }
 .badge.ok { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
 .badge.bad { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.badge.info { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 
 select.category-pick {
   min-height: var(--touch-min);
@@ -215,7 +216,10 @@ select.category-pick {
 .checklist-disclosure-title {
   font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);
 }
-.checklist-disclosure-arrow { font-size: 13px; color: var(--text-dim); flex-shrink: 0; }
+.checklist-disclosure-toggle {
+  font-size: 14px; font-weight: 600; color: var(--accent); flex-shrink: 0;
+  display: flex; align-items: center; gap: 4px;
+}
 .checklist-section { margin-bottom: 16px; }
 .checklist-section-title {
   font-size: 13px; font-weight: 600; color: var(--text-dim); text-transform: uppercase;

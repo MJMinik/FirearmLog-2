@@ -14,8 +14,8 @@ const TYPE_LABEL: Record<string, string> = {
   practice: 'Live practice', dry_fire: 'Dry fire', class: 'Class'
 };
 
-export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
-  id: string; onEdit: () => void; onBack: () => void; onDeleted: () => void; refreshKey: number;
+export function SessionDetail({ id, onEdit, onConvert, onBack, onDeleted, refreshKey }: {
+  id: string; onEdit: () => void; onConvert: () => void; onBack: () => void; onDeleted: () => void; refreshKey: number;
 }) {
   const [session, setSession] = useState<Session | null>(null);
   const [firearms, setFirearms] = useState<Firearm[]>([]);
@@ -77,6 +77,10 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
         <button className="navbar-action" onClick={onEdit}>Edit</button>
       </div>
       <h1 className="large-title">{formatDayKey(session.date)}</h1>
+
+      {session.planned && (
+        <button className="button" onClick={onConvert}>✓ Convert to Logged Session</button>
+      )}
 
       <div className="card">
         <h2>Session</h2>

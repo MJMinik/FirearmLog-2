@@ -69,6 +69,7 @@ function SessionRow({ s, firearms, onTap }: { s: Session; firearms: Firearm[]; o
     <button className="row-tap" onClick={onTap}>
       <span className="label">
         {formatDayKey(s.date)}
+        {s.planned && <span className="badge info" style={{ marginLeft: 6 }}>Planned</span>}
         <div className="row-sub">{names}{s.location ? ` · ${s.location}` : ''}</div>
       </span>
       <span className="value">{sessionRounds(s).toLocaleString()} {s.type === 'dry_fire' ? 'reps' : 'rds'}</span>
