@@ -207,6 +207,15 @@ select.category-pick {
 }
 
 /* ---------- Gear Checklist (Log/Plan Session) ---------- */
+.checklist-disclosure {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  background: none; border: none; padding: 0; margin-bottom: 10px;
+  min-height: 44px; cursor: pointer; text-align: left;
+}
+.checklist-disclosure-title {
+  font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);
+}
+.checklist-disclosure-arrow { font-size: 13px; color: var(--text-dim); flex-shrink: 0; }
 .checklist-section { margin-bottom: 16px; }
 .checklist-section-title {
   font-size: 13px; font-weight: 600; color: var(--text-dim); text-transform: uppercase;

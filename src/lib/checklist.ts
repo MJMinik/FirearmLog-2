@@ -200,7 +200,12 @@ export function buildChecklistPrintHtml(opts: {
     .notes-section { margin-top: 24px; padding-top: 16px; border-top: 1px solid #ccc; }
     .notes-title { font-size: 9pt; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #222; margin-bottom: 8px; }
     .notes-body { font-size: 11pt; color: #333; white-space: pre-wrap; line-height: 1.5; }
-    @media print { body { padding: 0.4in 0.5in; } }
+    .close-bar { margin-bottom: 16px; }
+    .close-btn {
+      font-family: inherit; font-size: 11pt; padding: 10px 16px; border-radius: 8px;
+      border: 1px solid #888; background: #f2f2f2; color: #111; cursor: pointer;
+    }
+    @media print { body { padding: 0.4in 0.5in; } .close-bar { display: none; } }
   `;
 
   const fwSelected = firearms.filter((f) => cl.items[`f_${f.id}`]?.take);
@@ -224,6 +229,7 @@ export function buildChecklistPrintHtml(opts: {
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Gear Checklist — ${escapeHtml(date)}</title><style>${styles}</style></head>
   <body>
+    <div class="close-bar"><button class="close-btn" onclick="window.close()">← Close &amp; return to FirearmLog</button></div>
     <div class="app-label">FirearmLog — Gear Checklist</div>
     <div class="header">
       <h1>Gear Checklist — ${escapeHtml(formatDayKey(date))}</h1>

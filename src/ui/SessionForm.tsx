@@ -99,6 +99,10 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
   const [newItemText, setNewItemText] = useState<Record<ChecklistCategory, string>>({
     essentials: '', night: '', tactical: ''
   });
+  const [addingItem, setAddingItem] = useState<Record<ChecklistCategory, boolean>>({
+    essentials: false, night: false, tactical: false
+  });
+  const [checklistOpen, setChecklistOpen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [viewing, setViewing] = useState<Media | null>(null);
   const [saving, setSaving] = useState(false);
@@ -191,6 +195,7 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
     const next = addCustomItem(customItems, cat, newId('ci'), label);
     setCustomItems(next);
     setNewItemText((prev) => ({ ...prev, [cat]: '' }));
+    setAddingItem((prev) => ({ ...prev, [cat]: false }));
     await putSettings<AppSettings>({ checklistCustomItems: next });
   }
 
@@ -227,12 +232,23 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
             </div>
           );
         })}
-        <div className="checklist-add">
-          <input value={newItemText[cat]} placeholder="Add a gear item — saves for future sessions"
-            aria-label={`Add a custom ${title} item`}
-            onChange={(e) => setNewItemText((prev) => ({ ...prev, [cat]: e.target.value }))} />
-          <button className="button secondary" onClick={() => void addChecklistItem(cat)}>+ Add</button>
-        </div>
+        {addingItem[cat] ? (
+          <div className="checklist-add">
+            <input value={newItemText[cat]} placeholder="Item name — saves for future sessions" autoFocus
+              aria-label={`New ${title} item name`}
+              onChange={(e) => setNewItemText((prev) => ({ ...prev, [cat]: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') void addChecklistItem(cat); }} />
+            <button className="button secondary" onClick={() => void addChecklistItem(cat)}>Add</button>
+            <button className="button secondary" onClick={() => {
+              setAddingItem((prev) => ({ ...prev, [cat]: false }));
+              setNewItemText((prev) => ({ ...prev, [cat]: '' }));
+            }}>Cancel</button>
+          </div>
+        ) : (
+          <button className="button secondary" onClick={() => setAddingItem((prev) => ({ ...prev, [cat]: true }))}>
+            + Add a gear item
+          </button>
+        )}
       </div>
     );
   }
@@ -414,8 +430,11 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
       </div>
 
       <div className="card">
-        <h2>Gear Checklist</h2>
-        <p className="report-note">Check items you plan to bring, then mark each as packed when ready.</p>
+        <button className="checklist-disclosure" aria-expanded={checklistOpen}
+          onClick={() => setChecklistOpen((v) => !v)}>
+          <span className="checklist-disclosure-title">Gear Checklist</span>
+          <span className="checklist-disclosure-arrow">{checklistOpen ? '▾' : '▸'}</span>
+        </button>
         {checklistProgressInfo.toTake > 0 && (
           <>
             <div className="dc-bar-wrap">
@@ -429,52 +448,58 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
           </>
         )}
 
-        {firearms.length > 0 && (
-          <div className="checklist-section">
-            <h3 className="checklist-section-title">🔫 Firearms</h3>
-            {firearms.map((f) => {
-              const itemId = `f_${f.id}`;
-              const state = itemState(checklist, itemId);
-              return (
-                <div className="checklist-item" key={f.id}>
-                  <label className="checklist-take">
-                    <input type="checkbox" checked={!!state.take}
-                      onChange={(e) => setChecklist((cl) => setItemTake(cl, itemId, e.target.checked))} />
-                    {f.name}
-                  </label>
-                  {state.take && (
-                    <label className="checklist-packed">
-                      <input type="checkbox" checked={!!state.packed}
-                        onChange={(e) => setChecklist((cl) => setItemPacked(cl, itemId, e.target.checked))} />
-                      Packed
-                    </label>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {checklistOpen && (
+          <>
+            <p className="report-note">Check items you plan to bring, then mark each as packed when ready.</p>
 
-        {checklistSection('essentials', 'Range Essentials', '🎯')}
+            {firearms.length > 0 && (
+              <div className="checklist-section">
+                <h3 className="checklist-section-title">🔫 Firearms</h3>
+                {firearms.map((f) => {
+                  const itemId = `f_${f.id}`;
+                  const state = itemState(checklist, itemId);
+                  return (
+                    <div className="checklist-item" key={f.id}>
+                      <label className="checklist-take">
+                        <input type="checkbox" checked={!!state.take}
+                          onChange={(e) => setChecklist((cl) => setItemTake(cl, itemId, e.target.checked))} />
+                        {f.name}
+                      </label>
+                      {state.take && (
+                        <label className="checklist-packed">
+                          <input type="checkbox" checked={!!state.packed}
+                            onChange={(e) => setChecklist((cl) => setItemPacked(cl, itemId, e.target.checked))} />
+                          Packed
+                        </label>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-        <div className="row">
-          <button className={`gun-toggle ${checklist.nightMode ? 'on' : ''}`} aria-pressed={checklist.nightMode}
-            onClick={() => setChecklist((cl) => setChecklistMode(cl, 'night', !cl.nightMode, customItems))}>
-            🔦 Include night-session gear in this checklist
-          </button>
-        </div>
-        {checklist.nightMode && checklistSection('night', 'Night Session', '🔦')}
+            {checklistSection('essentials', 'Range Essentials', '🎯')}
 
-        <div className="row">
-          <button className={`gun-toggle ${checklist.tacticalMode ? 'on' : ''}`} aria-pressed={checklist.tacticalMode}
-            onClick={() => setChecklist((cl) => setChecklistMode(cl, 'tactical', !cl.tacticalMode, customItems))}>
-            🪖 Include tactical gear in this checklist
-          </button>
-        </div>
-        {checklist.tacticalMode && checklistSection('tactical', 'Tactical', '🪖')}
+            <div className="row">
+              <button className={`gun-toggle ${checklist.nightMode ? 'on' : ''}`} aria-pressed={checklist.nightMode}
+                onClick={() => setChecklist((cl) => setChecklistMode(cl, 'night', !cl.nightMode, customItems))}>
+                🔦 Include night-session gear in this checklist
+              </button>
+            </div>
+            {checklist.nightMode && checklistSection('night', 'Night Session', '🔦')}
 
-        {checklistProgressInfo.toTake > 0 && (
-          <button className="button secondary" onClick={printChecklist}>🖨️ Print Checklist</button>
+            <div className="row">
+              <button className={`gun-toggle ${checklist.tacticalMode ? 'on' : ''}`} aria-pressed={checklist.tacticalMode}
+                onClick={() => setChecklist((cl) => setChecklistMode(cl, 'tactical', !cl.tacticalMode, customItems))}>
+                🪖 Include tactical gear in this checklist
+              </button>
+            </div>
+            {checklist.tacticalMode && checklistSection('tactical', 'Tactical', '🪖')}
+
+            {checklistProgressInfo.toTake > 0 && (
+              <button className="button secondary" onClick={printChecklist}>🖨️ Print Checklist</button>
+            )}
+          </>
         )}
       </div>
 
@@ -549,6 +574,8 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
         <button className="button secondary" onClick={() => setPicking(true)}>+ Add Drill</button>
       </div>
 
+      {!planned && (
+      <>
       <div className="card">
         <h2>Targets, Photos &amp; Videos</h2>
         {(visibleExisting.length > 0 || newFiles.length > 0) && (
@@ -636,6 +663,8 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
           </div>
         ))}
       </div>
+      </>
+      )}
 
       <div className="card">
         <h2>Wrap-Up</h2>
