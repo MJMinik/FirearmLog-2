@@ -19,4 +19,7 @@ export type View =
   | { kind: 'ammo' }
   | { kind: 'ammo-form'; id?: string }
   | { kind: 'costs' }
-  | { kind: 'purchase-form'; id?: string };
+  | { kind: 'purchase-form'; id?: string }
+  | { kind: 'optics' }
+  | { kind: 'optic-form'; id?: string; firearmId?: string }
+  | { kind: 'part-form'; id?: string };

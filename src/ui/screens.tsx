@@ -577,13 +577,17 @@ export function MoreScreen({ refreshKey, onImported, open }: {
         </div>
       </div>
       <div className="card">
-        <h2>Gear &amp; Library</h2>
+        <h2>Firearms &amp; Gear</h2>
         <button className="row-tap" onClick={() => open({ kind: 'drills' })}>
           <span className="label">Drills</span>
           <span className="value">›</span>
         </button>
         <button className="row-tap" onClick={() => open({ kind: 'magazines' })}>
           <span className="label">Magazines</span>
+          <span className="value">›</span>
+        </button>
+        <button className="row-tap" onClick={() => open({ kind: 'optics' })}>
+          <span className="label">Optics</span>
           <span className="value">›</span>
         </button>
         <button className="row-tap" onClick={() => open({ kind: 'ammo' })}>

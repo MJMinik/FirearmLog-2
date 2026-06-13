@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Firearm, MaintenanceEntry, Match, Media, Reference, Session } from '../lib/types.ts';
+import type { Firearm, MaintenanceEntry, Match, Media, Optic, Reference, Session } from '../lib/types.ts';
 import { getAll, getOne, putOne } from '../lib/db.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
 import { dryRepsForFirearm, roundsForFirearm } from '../lib/stats.ts';
 import { maintLabel, maintenanceStatus } from '../lib/maintenance.ts';
+import { isBatteryDue } from '../lib/optics.ts';
 import { buildRefLookup, referencesForCategory, toEntry } from '../lib/referenceData.ts';
 import { formatDayKey } from '../lib/dates.ts';
 import { mediaUrl } from './media.ts';
 import { PhotoSheet } from './PhotoSheet.tsx';
 import { Sheet } from './Sheet.tsx';
 
-export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReference, refreshKey }: {
+export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReference, onOpenOptic, refreshKey }: {
   id: string; onEdit: () => void; onBack: () => void;
   onLogMaintenance: () => void; onOpenReference: (refId: string) => void;
+  onOpenOptic: (opticId?: string, firearmId?: string) => void;
   refreshKey: number;
 }) {
   const [gun, setGun] = useState<Firearm | null>(null);
@@ -22,6 +24,7 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
   const [maintItems, setMaintItems] = useState<ReturnType<typeof maintenanceStatus>>([]);
   const [history, setHistory] = useState<MaintenanceEntry[]>([]);
   const [customRefs, setCustomRefs] = useState<Reference[]>([]);
+  const [optics, setOptics] = useState<Optic[]>([]);
   const [viewing, setViewing] = useState<Media | null>(null);
   const [pickingRef, setPickingRef] = useState(false);
   const [localBump, setLocalBump] = useState(0);
@@ -30,14 +33,15 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [g, firearms, sessions, matches, media, maintenance, refs] = await Promise.all([
+      const [g, firearms, sessions, matches, media, maintenance, refs, allOptics] = await Promise.all([
         getOne<Firearm>('firearms', id),
         getAll<Firearm>('firearms'),
         getAll<Session>('sessions'),
         getAll<Match>('matches'),
         getAll<Media>('media'),
         getAll<MaintenanceEntry>('maintenance'),
-        getAll<Reference>('references')
+        getAll<Reference>('references'),
+        getAll<Optic>('optics')
       ]);
       if (!alive || !g) return;
       setGun(g);
@@ -50,6 +54,7 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
       setCustomRefs(refs);
       setMaintItems(maintenanceStatus(g, buildRefLookup(refs)(g.referenceId), sessions, maintenance, firearms, new Date()));
       setHistory(maintenance.filter((m) => m.firearmId === id).sort((a, b) => b.date.localeCompare(a.date)));
+      setOptics(allOptics.filter((o) => o.firearmId === id));
     })();
     return () => { alive = false; };
   }, [id, refreshKey, localBump]);
@@ -152,6 +157,28 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
             {linkedRef ? 'Change Guide' : 'Link Maintenance Guide'}
           </button>
         </div>
+      </div>
+
+      <div className="card">
+        <h2>Optics</h2>
+        {optics.length === 0 && (
+          <p className="report-note" style={{ marginBottom: 10 }}>No optic linked to this gun yet.</p>
+        )}
+        {optics.map((op) => {
+          const due = isBatteryDue(op.batteryLog, new Date());
+          return (
+            <button className="row-tap" key={op.id} onClick={() => onOpenOptic(op.id, op.firearmId)}>
+              <span className="label">
+                {[op.make, op.model].filter(Boolean).join(' ') || 'Unnamed optic'}
+                <div className="row-sub">{due ? 'Battery due' : 'Active'}</div>
+              </span>
+              <span className="value">›</span>
+            </button>
+          );
+        })}
+        <button className="button secondary" style={{ marginTop: 10 }} onClick={() => onOpenOptic(undefined, gun.id)}>
+          + Add Optic
+        </button>
       </div>
 
       <div className="card">

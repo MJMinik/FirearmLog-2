@@ -16,6 +16,7 @@ const TABS: { id: TabId; label: string; glyph: string }[] = [
 const SECTIONS: { target: View; label: string; glyph: string; also: View['kind'][] }[] = [
   { target: { kind: 'drills' }, label: 'Drills', glyph: '🎯', also: ['drill-form'] },
   { target: { kind: 'magazines' }, label: 'Magazines', glyph: '▤', also: ['magazine-form'] },
+  { target: { kind: 'optics' }, label: 'Optics', glyph: '🔭', also: ['optic-form', 'part-form'] },
   { target: { kind: 'ammo' }, label: 'Ammo', glyph: '◉', also: ['ammo-form'] },
   { target: { kind: 'costs' }, label: 'Costs & Purchases', glyph: '$', also: ['purchase-form'] },
   { target: { kind: 'maintenance' }, label: 'Maintenance', glyph: '🛠', also: [] },
@@ -50,7 +51,7 @@ export function TabBar({ active, onChange, view, onOpen }: {
     <nav className="tabbar" aria-label="Main">
       <div className="side-title" aria-hidden="true">FirearmLog</div>
       {TABS.map(tabButton)}
-      <div className="nav-group-label" aria-hidden="true">Gear &amp; Library</div>
+      <div className="nav-group-label" aria-hidden="true">Firearms &amp; Gear</div>
       {SECTIONS.map((s) => (
         <button key={s.target.kind} className={`sidebar-only ${sectionOn(s) ? 'active' : ''}`}
           aria-current={sectionOn(s) ? 'page' : undefined}
