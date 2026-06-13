@@ -87,7 +87,7 @@ export function SessionDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
           <span className="label">{session.type === 'dry_fire' ? 'Dry-fire reps' : 'Rounds'}</span>
           <span className="value">{sessionRounds(session).toLocaleString()}</span>
         </div>
-        {session.rangeFee !== null && <div className="row"><span className="label">Range fee</span><span className="value">${session.rangeFee.toFixed(2)}</span></div>}
+        {session.rangeFee != null && <div className="row"><span className="label">Range fee</span><span className="value">${session.rangeFee.toFixed(2)}</span></div>}
       </div>
 
       <div className="card">

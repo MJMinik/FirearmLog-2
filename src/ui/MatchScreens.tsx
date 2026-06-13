@@ -58,17 +58,17 @@ export function MatchDetail({ id, onEdit, onBack, onDeleted, refreshKey }: {
         <div className="row"><span className="label">Type</span><span className="value">{match.matchType}</span></div>
         <div className="row"><span className="label">Division</span><span className="value">{match.division}{match.powerFactor ? ` · ${match.powerFactor}` : ''}</span></div>
         <div className="row"><span className="label">Gun</span><span className="value">{gunName}</span></div>
-        {match.totalRounds !== null && <div className="row"><span className="label">Rounds fired</span><span className="value">{match.totalRounds.toLocaleString()}</span></div>}
-        {match.matchPercent !== null && <div className="row"><span className="label">Match percent</span><span className="value">{match.matchPercent}%</span></div>}
-        {match.divisionPlace !== null && (
+        {match.totalRounds != null && <div className="row"><span className="label">Rounds fired</span><span className="value">{match.totalRounds.toLocaleString()}</span></div>}
+        {match.matchPercent != null && <div className="row"><span className="label">Match percent</span><span className="value">{match.matchPercent}%</span></div>}
+        {match.divisionPlace != null && (
           <div className="row"><span className="label">Division finish</span>
             <span className="value">{match.divisionPlace}{match.divisionOf ? ` of ${match.divisionOf}` : ''}</span></div>
         )}
-        {match.overallPlace !== null && (
+        {match.overallPlace != null && (
           <div className="row"><span className="label">Overall finish</span>
             <span className="value">{match.overallPlace}{match.overallOf ? ` of ${match.overallOf}` : ''}</span></div>
         )}
-        {match.entryFee !== null && <div className="row"><span className="label">Entry fee</span><span className="value">${match.entryFee.toFixed(2)}</span></div>}
+        {match.entryFee != null && <div className="row"><span className="label">Entry fee</span><span className="value">${match.entryFee.toFixed(2)}</span></div>}
         {match.practiScoreUrl && (
           <a className="row-tap" href={match.practiScoreUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
             <span className="label" style={{ color: 'var(--accent)' }}>Results on PractiScore</span>
@@ -188,20 +188,20 @@ export function MatchForm({ id, onSaved, onCancel }: {
         setName(m.name); setDate(m.date); setMatchType(m.matchType);
         setDivision(m.division); setPowerFactor(m.powerFactor || 'Minor');
         setFirearmId(m.firearmId);
-        setTotalRounds(m.totalRounds === null ? '' : String(m.totalRounds));
-        setMatchPercent(m.matchPercent === null ? '' : String(m.matchPercent));
-        setDivPlace(m.divisionPlace === null ? '' : String(m.divisionPlace));
-        setDivOf(m.divisionOf === null ? '' : String(m.divisionOf));
-        setOverallPlace(m.overallPlace === null ? '' : String(m.overallPlace));
-        setOverallOf(m.overallOf === null ? '' : String(m.overallOf));
+        setTotalRounds(m.totalRounds == null ? '' : String(m.totalRounds));
+        setMatchPercent(m.matchPercent == null ? '' : String(m.matchPercent));
+        setDivPlace(m.divisionPlace == null ? '' : String(m.divisionPlace));
+        setDivOf(m.divisionOf == null ? '' : String(m.divisionOf));
+        setOverallPlace(m.overallPlace == null ? '' : String(m.overallPlace));
+        setOverallOf(m.overallOf == null ? '' : String(m.overallOf));
         setStages(m.stages.map((st) => ({
-          points: st.points === null ? '' : String(st.points),
-          time: st.time === null ? '' : String(st.time),
-          percent: st.percent === null ? '' : String(st.percent),
+          points: st.points == null ? '' : String(st.points),
+          time: st.time == null ? '' : String(st.time),
+          percent: st.percent == null ? '' : String(st.percent),
           notes: st.notes
         })));
         setExistingMedia(allMedia.filter((x) => x.ownerType === 'match' && x.ownerId === id));
-        setEntryFee(m.entryFee === null ? '' : String(m.entryFee));
+        setEntryFee(m.entryFee == null ? '' : String(m.entryFee));
         setPsUrl(m.practiScoreUrl); setNotes(m.notes);
       }
     })();

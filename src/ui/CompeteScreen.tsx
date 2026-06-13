@@ -39,7 +39,7 @@ export function CompeteScreen({ refreshKey, open }: {
 
   const thisYear = todayKey().slice(0, 4);
   const seasonMatches = matches.filter((m) => m.date.startsWith(thisYear));
-  const seasonPercents = seasonMatches.map((m) => m.matchPercent).filter((p): p is number => p !== null);
+  const seasonPercents = seasonMatches.map((m) => m.matchPercent).filter((p): p is number => p != null);
   // Same single-source fee math the Costs screen uses (handles old imported matches too).
   const seasonFees = seasonMatches.reduce((s, m) => s + matchFee(m), 0);
 
@@ -105,7 +105,7 @@ export function CompeteScreen({ refreshKey, open }: {
               <div className="row-sub">{formatDayKey(m.date)} · {m.division}</div>
             </span>
             <span className="value">
-              {m.matchPercent !== null ? `${m.matchPercent}%` : m.divisionPlace !== null ? `#${m.divisionPlace}` : '›'}
+              {m.matchPercent != null ? `${m.matchPercent}%` : m.divisionPlace != null ? `#${m.divisionPlace}` : '›'}
             </span>
           </button>
         ))}

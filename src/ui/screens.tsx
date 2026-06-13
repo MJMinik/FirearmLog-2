@@ -433,7 +433,7 @@ export function HomeScreen({ refreshKey, onImported, open }: {
                       {m.name || 'Match'}
                       <div className="row-sub">{formatDayKey(m.date)} · {m.division}</div>
                     </span>
-                    {m.matchPercent !== null && (
+                    {m.matchPercent != null && (
                       <span className="value">{m.matchPercent.toFixed(1)}%</span>
                     )}
                   </button>
