@@ -133,14 +133,14 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
       </div>
 
       <div className="card">
-        <h2>Reference</h2>
+        <h2>Maintenance Guide</h2>
         {linkedRef ? (
           <p className="report-note" style={{ marginBottom: 10 }}>
             Linked to <strong>{linkedRef.name}</strong> — its schedule fills in any blanks above.
           </p>
         ) : (
           <p className="report-note" style={{ marginBottom: 10 }}>
-            No reference linked. Link the maker's guide and its care schedule becomes this gun's default.
+            No maintenance guide linked. Link the maker's guide and its care schedule becomes this gun's default.
           </p>
         )}
         <div style={{ display: 'flex', gap: 8 }}>
@@ -149,7 +149,7 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
               onClick={() => onOpenReference(linkedRef.id)}>View Guide</button>
           )}
           <button className="button secondary" style={{ flex: 1 }} onClick={() => setPickingRef(true)}>
-            {linkedRef ? 'Change Link' : 'Link a Reference'}
+            {linkedRef ? 'Change Guide' : 'Link Maintenance Guide'}
           </button>
         </div>
       </div>
@@ -198,7 +198,7 @@ export function GunDetail({ id, onEdit, onBack, onLogMaintenance, onOpenReferenc
           onChanged={() => setLocalBump((b) => b + 1)} />
       )}
       {pickingRef && (
-        <Sheet title="Link a Reference" onClose={() => setPickingRef(false)}>
+        <Sheet title="Link Maintenance Guide" onClose={() => setPickingRef(false)}>
           <p className="report-note" style={{ marginBottom: 8 }}>
             Guides for {gun.category.toLowerCase()}s:
           </p>

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { Firearm, GunCategory } from '../lib/types.ts';
+import type { Firearm, GunCategory, Reference } from '../lib/types.ts';
 import { GUN_CATEGORIES } from '../lib/types.ts';
-import { getOne, putOne } from '../lib/db.ts';
+import { getAll, getOne, putOne } from '../lib/db.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
+import { suggestReferenceMatch, type ReferenceEntry } from '../lib/referenceData.ts';
 
 export function GunForm({ id, onSaved, onCancel }: {
   id?: string; onSaved: (gunId: string) => void; onCancel: () => void;
@@ -22,6 +23,14 @@ export function GunForm({ id, onSaved, onCancel }: {
   const [recoilSpring, setRecoilSpring] = useState('');
   const [notes, setNotes] = useState('');
   const [problem, setProblem] = useState('');
+  const [referenceId, setReferenceId] = useState<string | null>(null);
+  const [customRefs, setCustomRefs] = useState<Reference[]>([]);
+  const [refSuggestion, setRefSuggestion] = useState<ReferenceEntry | null>(null);
+  const [dismissedSuggestionId, setDismissedSuggestionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void getAll<Reference>('references').then(setCustomRefs);
+  }, []);
 
   useEffect(() => {
     if (id === undefined) return;
@@ -35,9 +44,19 @@ export function GunForm({ id, onSaved, onCancel }: {
       setDeepClean(g.deepCleanInterval ? String(g.deepCleanInterval) : '');
       setRecoilSpring(g.recoilSpringInterval ? String(g.recoilSpringInterval) : '');
       setNotes(g.notes);
+      setReferenceId(g.referenceId);
     });
     return () => { alive = false; };
   }, [editing, id]);
+
+  // Suggest a maintenance guide that matches the manufacturer, scoped to
+  // type — but only while nothing is linked and that exact suggestion
+  // hasn't already been waved off. Never links automatically.
+  useEffect(() => {
+    if (referenceId) { setRefSuggestion(null); return; }
+    const match = suggestReferenceMatch(manufacturer, category, customRefs);
+    setRefSuggestion(match && match.id !== dismissedSuggestionId ? match : null);
+  }, [manufacturer, category, customRefs, referenceId, dismissedSuggestionId]);
 
   async function save() {
     if (!name.trim()) { setProblem('Give the gun a name.'); return; }
@@ -52,7 +71,7 @@ export function GunForm({ id, onSaved, onCancel }: {
       name: name.trim(), manufacturer: manufacturer.trim(), model: model.trim(),
       caliber: caliber.trim(), category, serialNumber: serial.trim() || null,
       dateAcquired: acquired, startingRoundCount: start, notes: notes.trim(),
-      deepCleanInterval: dcNum, recoilSpringInterval: rsNum
+      deepCleanInterval: dcNum, recoilSpringInterval: rsNum, referenceId
     };
     if (editing && original) {
       const updated = stampUpdate({ ...original, ...fields }, Date.now());
@@ -63,7 +82,7 @@ export function GunForm({ id, onSaved, onCancel }: {
         ...fields,
         recoilSpringWeight: null,
         barrelName: null, barrelInstallDate: null, barrelStartRounds: null,
-        photoIds: [], referenceId: null
+        photoIds: []
       }, newId('fa'), Date.now());
       await putOne('firearms', created);
       onSaved(created.id);
@@ -106,16 +125,36 @@ export function GunForm({ id, onSaved, onCancel }: {
         <label className="field">Starting round count
           <input type="number" inputMode="numeric" min="0" value={startCount} onChange={(e) => setStartCount(e.target.value)} />
         </label>
-        <label className="field">Deep clean every … rounds (blank = use the linked Reference or 10,000)
+        <label className="field">Deep clean every … rounds (blank = use the linked Maintenance Guide or 10,000)
           <input type="number" inputMode="numeric" min="1" value={deepClean} onChange={(e) => setDeepClean(e.target.value)} />
         </label>
-        <label className="field">Recoil spring every … rounds (blank = use the linked Reference)
+        <label className="field">Recoil spring every … rounds (blank = use the linked Maintenance Guide)
           <input type="number" inputMode="numeric" min="1" value={recoilSpring} onChange={(e) => setRecoilSpring(e.target.value)} />
         </label>
         <label className="field">Notes
           <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
       </div>
+
+      {refSuggestion && (
+        <div className="card">
+          <p className="report-note" style={{ marginBottom: 8 }}>
+            We found a maintenance guide for <strong>{manufacturer.trim()}</strong>: <strong>{refSuggestion.name}</strong>.
+            Want to link it so its care schedule fills in this gun's upkeep?
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="button secondary" style={{ flex: 1 }}
+              onClick={() => { setReferenceId(refSuggestion.id); setRefSuggestion(null); }}>
+              Link {refSuggestion.name}
+            </button>
+            <button className="button secondary" style={{ flex: 1 }}
+              onClick={() => setDismissedSuggestionId(refSuggestion.id)}>
+              No Thanks
+            </button>
+          </div>
+        </div>
+      )}
+
       <button className="button" onClick={() => void save()}>{editing ? 'Save Changes' : 'Add Gun'}</button>
     </div>
   );

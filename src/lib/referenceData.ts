@@ -271,3 +271,38 @@ export function buildRefLookup(custom: Reference[]): (id: string | null) => Refe
     return getReference(id);
   };
 }
+
+/** Lowercases, drops "(...)" notes, and collapses punctuation to spaces for loose name matching. */
+function normalizeName(s: string): string {
+  return s.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/** Pulls out parenthetical text (e.g. "(BCM)" -> "bcm"), normalized. */
+function parentheticals(s: string): string[] {
+  const out: string[] = [];
+  const re = /\(([^)]*)\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s))) {
+    const inner = normalizeName(m[1]);
+    if (inner) out.push(inner);
+  }
+  return out;
+}
+
+/**
+ * Suggests a maintenance guide whose name looks like it matches the gun's
+ * manufacturer, scoped to its category (so the two Smith & Wesson guides
+ * don't collide). Returns null if nothing looks like a fit — this powers a
+ * one-tap suggestion, never an automatic link.
+ */
+export function suggestReferenceMatch(manufacturer: string, category: GunCategory, custom: Reference[]): ReferenceEntry | null {
+  const make = normalizeName(manufacturer);
+  if (!make) return null;
+  const candidates = [...custom.filter((r) => r.category === category).map(toEntry), ...referencesForCategory(category)];
+  for (const r of candidates) {
+    const base = normalizeName(r.name);
+    if (make === base || parentheticals(r.name).includes(make)) return r;
+    if (make.length >= 3 && base.length >= 3 && (make.includes(base) || base.includes(make))) return r;
+  }
+  return null;
+}
