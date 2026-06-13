@@ -508,7 +508,10 @@ export function LogScreen({ refreshKey, open }: { refreshKey: number; open: (v: 
         trips — with rounds, drills, ammo used, malfunctions, photos, and how it felt.
         Matches and classifiers live in the Compete tab; they show up here on the calendar.
       </p>
-      <button className="button" onClick={() => open({ kind: 'session-form' })}>+ Log Session</button>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="button" style={{ flex: 1 }} onClick={() => open({ kind: 'session-form' })}>+ Log Session</button>
+        <button className="button secondary" style={{ flex: 1 }} onClick={() => open({ kind: 'session-form', planned: true })}>+ Plan Session</button>
+      </div>
       <LogFilterBar value={filter} onChange={setFilter} firearms={firearms}
         shown={shownSessions.length + shownMatches.length}
         total={sessions.length + matches.length} />

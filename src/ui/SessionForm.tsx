@@ -58,8 +58,8 @@ const fromRow = (r: DrillRow): DrillResult => ({
   notes: r.notes.trim()
 });
 
-export function SessionForm({ id, onSaved, onCancel }: {
-  id?: string; onSaved: (sessionId: string) => void; onCancel: () => void;
+export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
+  id?: string; initialPlanned?: boolean; onSaved: (sessionId: string) => void; onCancel: () => void;
 }) {
   const editing = id !== undefined;
   const [original, setOriginal] = useState<Session | null>(null);
@@ -72,7 +72,7 @@ export function SessionForm({ id, onSaved, onCancel }: {
   const [kind, setKind] = useState('practice');
   const [date, setDate] = useState(todayKey());
   const [location, setLocation] = useState('');
-  const [planned, setPlanned] = useState(false);
+  const [planned, setPlanned] = useState(!editing && !!initialPlanned);
   const [instructors, setInstructors] = useState<string[]>([]);
   const [instructor, setInstructor] = useState('');
   const [newInstructor, setNewInstructor] = useState('');
@@ -282,7 +282,7 @@ export function SessionForm({ id, onSaved, onCancel }: {
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
-      <h1 className="large-title">{editing ? 'Edit Session' : 'Log Session'}</h1>
+      <h1 className="large-title">{editing ? 'Edit Session' : planned ? 'Plan Session' : 'Log Session'}</h1>
       {problem && <p className="form-problem">{problem}</p>}
 
       <div className="card">

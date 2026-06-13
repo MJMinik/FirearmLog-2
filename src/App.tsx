@@ -66,7 +66,7 @@ export function App() {
       onDeleted={() => { refresh(); replace(null); }} />;
   } else if (view?.kind === 'session-form') {
     const v = view;
-    content = <SessionForm id={v.id}
+    content = <SessionForm id={v.id} initialPlanned={v.planned}
       onCancel={back}
       onSaved={(sid) => { refresh(); replace({ kind: 'session-detail', id: sid }); }} />;
   } else if (view?.kind === 'drills') {
