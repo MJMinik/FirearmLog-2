@@ -168,6 +168,14 @@ export async function getSettings<T>(): Promise<T | undefined> {
   return row?.value;
 }
 
+/** Merge `patch` into the stored settings record (creating it if needed). */
+export async function putSettings<T extends object>(patch: Partial<T>): Promise<T> {
+  const current = (await getSettings<T>()) ?? ({} as T);
+  const next = { ...current, ...patch };
+  await putOne('meta', { key: 'settings', value: next });
+  return next;
+}
+
 /** Every store except media, for snapshot export. */
 const SNAPSHOT_STORES: StoreName[] = [
   'firearms', 'sessions', 'drills', 'ammunition', 'purchases',

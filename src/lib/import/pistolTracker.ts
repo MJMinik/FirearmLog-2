@@ -9,6 +9,7 @@ import type {
 } from '../types.ts';
 import { newId } from '../id.ts';
 import { roundsForFirearm } from '../stats.ts';
+import { normalizeChecklist } from '../checklist.ts';
 
 // ---------- What the old file looks like (only what we rely on) ----------
 
@@ -252,7 +253,7 @@ export function importPistolTracker(
       selfRating: (s.selfRating && typeof s.selfRating === 'object') ? s.selfRating as Record<string, number> : null,
       rangeFee: numOrNull(s.rangeFee),
       planned: s.planned === true,
-      checklist: s.checklist ?? null,
+      checklist: normalizeChecklist(s.checklist),
       legacy: takeRest(s, mapped)
     }, id, now);
   });

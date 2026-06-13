@@ -46,6 +46,32 @@ export interface SessionGun {
   rounds: number;
 }
 
+/** A single gear-checklist item (default or custom). */
+export interface ChecklistItem {
+  id: string;
+  label: string;
+}
+
+/** Per-item take/packed state, keyed by item id (firearms use `f_${firearmId}`). */
+export interface ChecklistItemState {
+  take?: boolean;
+  packed?: boolean;
+}
+
+/** A session's gear checklist — spec for Gear Checklist feature. */
+export interface SessionChecklist {
+  nightMode: boolean;
+  tacticalMode: boolean;
+  items: Record<string, ChecklistItemState>;
+}
+
+/** User-added gear items, saved for all future sessions. */
+export interface ChecklistCustomItems {
+  essentials: ChecklistItem[];
+  night: ChecklistItem[];
+  tactical: ChecklistItem[];
+}
+
 export interface DrillResult {
   name: string; // references DrillDef.name (old-app convention, kept on import)
   distance: string;
@@ -70,7 +96,7 @@ export interface Session extends BaseRecord, Imported {
   rangeFee: number | null; // first-class cost source (spec §12.2)
   planned: boolean;
   instructor?: string | null; // for Class sessions
-  checklist: unknown | null;
+  checklist: SessionChecklist | null;
 }
 
 export interface DrillDef extends BaseRecord, Imported {
@@ -237,7 +263,7 @@ export interface TrashItem extends BaseRecord {
 export interface AppSettings {
   ownerName: string;
   theme: string;
-  checklistCustomItems: unknown;
+  checklistCustomItems: ChecklistCustomItems;
   legacy?: Record<string, unknown>;
 }
 

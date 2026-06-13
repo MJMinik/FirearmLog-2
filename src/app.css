@@ -206,6 +206,33 @@ select.category-pick {
   background: var(--bg); color: var(--text); padding: 8px 10px; text-align: right;
 }
 
+/* ---------- Gear Checklist (Log/Plan Session) ---------- */
+.checklist-section { margin-bottom: 16px; }
+.checklist-section-title {
+  font-size: 13px; font-weight: 600; color: var(--text-dim); text-transform: uppercase;
+  letter-spacing: 0.5px; margin: 0 0 4px;
+}
+.checklist-item {
+  display: flex; align-items: center; gap: 8px; min-height: 44px;
+  border-bottom: 0.5px solid var(--separator);
+}
+.checklist-item:last-of-type { border-bottom: none; }
+.checklist-take {
+  display: flex; align-items: center; gap: 10px; flex: 1; min-height: 44px;
+  font-size: 15px; color: var(--text); cursor: pointer;
+}
+.checklist-packed {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim);
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+}
+.checklist-take input, .checklist-packed input { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--accent); }
+.checklist-add { display: flex; gap: 8px; margin: 8px 0 16px; }
+.checklist-add input {
+  flex: 1; min-width: 0; min-height: 44px; border: 0.5px solid var(--separator);
+  border-radius: 10px; background: var(--bg); color: var(--text); padding: 8px 10px;
+}
+.checklist-add .button { flex: none; }
+
 .drill-edit { border-bottom: 0.5px solid var(--separator); padding: 10px 0 6px; }
 .drill-edit:last-of-type { border-bottom: none; }
 .drill-edit-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }

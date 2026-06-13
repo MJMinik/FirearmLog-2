@@ -3,15 +3,21 @@
 // ratings, fee, notes. Removals are STAGED — cancel really cancels (rule F3).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  Ammunition, DrillDef, DrillResult, Firearm, GunCategory, MalfunctionEntry, Media, Session
+  Ammunition, AppSettings, ChecklistCustomItems, DrillDef, DrillResult, Firearm, GunCategory,
+  MalfunctionEntry, Media, Session, SessionChecklist
 } from '../lib/types.ts';
-import { deleteOne, getAll, getOne, putOne } from '../lib/db.ts';
+import { deleteOne, getAll, getOne, getSettings, putOne, putSettings } from '../lib/db.ts';
 import { todayKey } from '../lib/dates.ts';
 import { newId } from '../lib/id.ts';
 import { stampNew, stampUpdate } from '../lib/stamps.ts';
 import { drillsForContext } from '../lib/drillFilter.ts';
 import { inventoryAfterUsageChange } from '../lib/costing.ts';
 import { recentValues } from '../lib/suggest.ts';
+import {
+  buildChecklistPrintHtml, checklistItemsForCategory, checklistProgress, itemState, newChecklist,
+  normalizeChecklist, normalizeCustomItems, setChecklistMode, setItemPacked, setItemTake,
+  type ChecklistCategory, addCustomItem
+} from '../lib/checklist.ts';
 import { ammoLabel } from './AmmoScreens.tsx';
 import { SuggestField } from './SuggestField.tsx';
 import { Sheet } from './Sheet.tsx';
@@ -88,6 +94,11 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
   );
   const [rangeFee, setRangeFee] = useState('');
   const [notes, setNotes] = useState('');
+  const [checklist, setChecklist] = useState<SessionChecklist>(newChecklist());
+  const [customItems, setCustomItems] = useState<ChecklistCustomItems>(normalizeCustomItems(undefined));
+  const [newItemText, setNewItemText] = useState<Record<ChecklistCategory, string>>({
+    essentials: '', night: '', tactical: ''
+  });
   const [picking, setPicking] = useState(false);
   const [viewing, setViewing] = useState<Media | null>(null);
   const [saving, setSaving] = useState(false);
@@ -108,6 +119,8 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
       setPastLocations(recentValues(allSessions.map((s) => ({ date: s.date, value: s.location }))));
       const instructorRow = await getOne<{ key: string; value: string[] }>('meta', 'instructors');
       if (alive) setInstructors(instructorRow?.value ?? []);
+      const settings = await getSettings<AppSettings>();
+      if (alive) setCustomItems(normalizeCustomItems(settings?.checklistCustomItems));
       if (id !== undefined) {
         const [s, allMedia, allMalfs] = await Promise.all([
           getOne<Session>('sessions', id),
@@ -137,6 +150,7 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
         });
         setRangeFee(s.rangeFee === null ? '' : String(s.rangeFee));
         setNotes(s.notes);
+        setChecklist(normalizeChecklist(s.checklist));
       }
     })();
     return () => { alive = false; };
@@ -164,6 +178,63 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
       else next[fid] = '';
       return next;
     });
+  }
+
+  const checklistProgressInfo = useMemo(
+    () => checklistProgress(checklist, firearms, customItems),
+    [checklist, firearms, customItems]
+  );
+
+  async function addChecklistItem(cat: ChecklistCategory) {
+    const label = newItemText[cat].trim();
+    if (!label) return;
+    const next = addCustomItem(customItems, cat, newId('ci'), label);
+    setCustomItems(next);
+    setNewItemText((prev) => ({ ...prev, [cat]: '' }));
+    await putSettings<AppSettings>({ checklistCustomItems: next });
+  }
+
+  function printChecklist() {
+    const html = buildChecklistPrintHtml({ date, location, notes, checklist, custom: customItems, firearms });
+    const win = window.open('', '_blank');
+    if (!win) { setProblem('Pop-ups blocked — please allow pop-ups and try again.'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 400);
+  }
+
+  function checklistSection(cat: ChecklistCategory, title: string, icon: string) {
+    return (
+      <div className="checklist-section">
+        <h3 className="checklist-section-title">{icon} {title}</h3>
+        {checklistItemsForCategory(cat, customItems).map((item) => {
+          const state = itemState(checklist, item.id);
+          return (
+            <div className="checklist-item" key={item.id}>
+              <label className="checklist-take">
+                <input type="checkbox" checked={!!state.take}
+                  onChange={(e) => setChecklist((cl) => setItemTake(cl, item.id, e.target.checked))} />
+                {item.label}
+              </label>
+              {state.take && (
+                <label className="checklist-packed">
+                  <input type="checkbox" checked={!!state.packed}
+                    onChange={(e) => setChecklist((cl) => setItemPacked(cl, item.id, e.target.checked))} />
+                  Packed
+                </label>
+              )}
+            </div>
+          );
+        })}
+        <div className="checklist-add">
+          <input value={newItemText[cat]} placeholder="Add a gear item — saves for future sessions"
+            aria-label={`Add a custom ${title} item`}
+            onChange={(e) => setNewItemText((prev) => ({ ...prev, [cat]: e.target.value }))} />
+          <button className="button secondary" onClick={() => void addChecklistItem(cat)}>+ Add</button>
+        </div>
+      </div>
+    );
   }
 
   function filesPicked(list: FileList | null) {
@@ -217,14 +288,13 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
       const fields = {
         date, type: kind, guns, location: location.trim(), notes: notes.trim(),
         drills: drills.map(fromRow), selfRating, rangeFee: fee, ammoUsage,
-        planned, instructor: finalInstructor || null
+        planned, instructor: finalInstructor || null, checklist
       };
       if (original) {
         await putOne('sessions', stampUpdate({ ...original, ...fields }, now));
       } else {
         await putOne('sessions', stampNew({
-          ...fields, distances: '', targetMediaIds: [],
-          malfunctions: [], checklist: null
+          ...fields, distances: '', targetMediaIds: [], malfunctions: []
         }, sid, now));
       }
       if (finalInstructor && !instructors.includes(finalInstructor)) {
@@ -341,6 +411,71 @@ export function SessionForm({ id, initialPlanned, onSaved, onCancel }: {
             </div>
           );
         })}
+      </div>
+
+      <div className="card">
+        <h2>Gear Checklist</h2>
+        <p className="report-note">Check items you plan to bring, then mark each as packed when ready.</p>
+        {checklistProgressInfo.toTake > 0 && (
+          <>
+            <div className="dc-bar-wrap">
+              <div className="dc-bar-fill" style={{ width: `${checklistProgressInfo.pct}%` }} />
+            </div>
+            <p className="report-note">
+              {checklistProgressInfo.packed === checklistProgressInfo.toTake
+                ? `✓ All packed (${checklistProgressInfo.packed}/${checklistProgressInfo.toTake})`
+                : `${checklistProgressInfo.packed} / ${checklistProgressInfo.toTake} packed`}
+            </p>
+          </>
+        )}
+
+        {firearms.length > 0 && (
+          <div className="checklist-section">
+            <h3 className="checklist-section-title">🔫 Firearms</h3>
+            {firearms.map((f) => {
+              const itemId = `f_${f.id}`;
+              const state = itemState(checklist, itemId);
+              return (
+                <div className="checklist-item" key={f.id}>
+                  <label className="checklist-take">
+                    <input type="checkbox" checked={!!state.take}
+                      onChange={(e) => setChecklist((cl) => setItemTake(cl, itemId, e.target.checked))} />
+                    {f.name}
+                  </label>
+                  {state.take && (
+                    <label className="checklist-packed">
+                      <input type="checkbox" checked={!!state.packed}
+                        onChange={(e) => setChecklist((cl) => setItemPacked(cl, itemId, e.target.checked))} />
+                      Packed
+                    </label>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {checklistSection('essentials', 'Range Essentials', '🎯')}
+
+        <div className="row">
+          <button className={`gun-toggle ${checklist.nightMode ? 'on' : ''}`} aria-pressed={checklist.nightMode}
+            onClick={() => setChecklist((cl) => setChecklistMode(cl, 'night', !cl.nightMode, customItems))}>
+            🔦 Include night-session gear in this checklist
+          </button>
+        </div>
+        {checklist.nightMode && checklistSection('night', 'Night Session', '🔦')}
+
+        <div className="row">
+          <button className={`gun-toggle ${checklist.tacticalMode ? 'on' : ''}`} aria-pressed={checklist.tacticalMode}
+            onClick={() => setChecklist((cl) => setChecklistMode(cl, 'tactical', !cl.tacticalMode, customItems))}>
+            🪖 Include tactical gear in this checklist
+          </button>
+        </div>
+        {checklist.tacticalMode && checklistSection('tactical', 'Tactical', '🪖')}
+
+        {checklistProgressInfo.toTake > 0 && (
+          <button className="button secondary" onClick={printChecklist}>🖨️ Print Checklist</button>
+        )}
       </div>
 
       {kind !== 'dry_fire' && ammoLib.length > 0 && (
