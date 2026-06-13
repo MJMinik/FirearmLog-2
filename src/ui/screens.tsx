@@ -274,7 +274,10 @@ export function HomeScreen({ refreshKey, onImported, open }: {
               {formatDayKey(new Date().toISOString().slice(0, 10))} · Training since {stats.trainingSince}
             </p>
           )}
-          <button className="button" onClick={() => open({ kind: 'session-form' })}>+ Log Session</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="button" style={{ flex: 1 }} onClick={() => open({ kind: 'session-form' })}>+ Log Session</button>
+            <button className="button secondary" style={{ flex: 1 }} onClick={() => open({ kind: 'session-form', planned: true })}>+ Plan Session</button>
+          </div>
 
           {/* ---- Stat grid ---- */}
           <div className="stat-grid" style={{ marginTop: 16 }}>
